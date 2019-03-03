@@ -79,6 +79,20 @@ class _fasterRCNN(nn.Module):
             if cfg.CROP_RESIZE_WITH_MAX_POOL:
                 pooled_feat = F.max_pool2d(pooled_feat, 2, 2)
         elif cfg.POOLING_MODE == 'align':
+            """
+            (Pdb) base_feat.size()
+            torch.Size([15, 512, 37, 56])
+            (Pdb) rois.size()
+            torch.Size([15, 256, 5])
+            (Pdb) batch_size
+            15
+            15*256=3840
+            (Pdb) pooled_feat.size()
+            torch.Size([3840, 512, 7, 7]) 
+
+            # all rois feature in the batch
+            pooled_feat size for each roi is 512x7x7
+            """
             pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
         elif cfg.POOLING_MODE == 'pool':
             pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1,5))
