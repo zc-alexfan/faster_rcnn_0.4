@@ -28,6 +28,7 @@ except NameError:
 
 class vg(imdb):
     def __init__(self, version, image_set, ):
+        print(">>>>>>>>>> Constructing imdb (version=%s, image_set=%s)"%(version, image_set))
         imdb.__init__(self, 'vg_' + version + '_' + image_set)
         self._version = version
         self._image_set = image_set
@@ -333,7 +334,7 @@ class vg(imdb):
                                        dets[k, 2] + 1, dets[k, 3] + 1))
 
 
-    def _do_python_eval(self, output_dir, pickle=True, eval_attributes = False):
+    def _do_python_eval(self, output_dir, use_pickle=True, eval_attributes = False):
         # We re-use parts of the pascal voc python code for visual genome
         aps = []
         nposs = []
@@ -359,6 +360,11 @@ class vg(imdb):
 
             # Determine per class detection thresholds that maximise f score
             if npos > 1:
+                if (type(prec) == type(0) and type(rec) == type(0) and type(scores) == type(0)):
+                    prec = np.array([prec])
+                    rec = np.array([rec])
+                    scores = np.array([scores])
+
                 f = np.nan_to_num((prec*rec)/(prec+rec))
                 thresh += [scores[np.argmax(f)]]
             else:
@@ -366,7 +372,7 @@ class vg(imdb):
             aps += [ap]
             nposs += [float(npos)]
             print('AP for {} = {:.4f} (npos={:,})'.format(cls, ap, npos))
-            if pickle:
+            if use_pickle:
                 with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
                     pickle.dump({'rec': rec, 'prec': prec, 'ap': ap,
                         'scores': scores, 'npos':npos}, f)

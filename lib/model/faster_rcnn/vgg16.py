@@ -26,11 +26,21 @@ class vgg16(_fasterRCNN):
     _fasterRCNN.__init__(self, classes, class_agnostic)
 
   def _init_modules(self):
-    vgg = models.vgg16()
+    
+    vgg = models.vgg16(pretrained=False)
+    print('Loaded VGG16 pretrained = '+ str())
     if self.pretrained:
-        print("Loading pretrained weights from %s" %(self.model_path))
+        print(">>>>>>>>>VGG pretrained from disk. Loading pretrained weights from %s" %(self.model_path))
         state_dict = torch.load(self.model_path)
         vgg.load_state_dict({k:v for k,v in state_dict.items() if k in vgg.state_dict()})
+
+    freeze_vgg = False
+    for param in vgg.parameters():
+            param.requires_grad = not freeze_vgg
+    if freeze_vgg:
+        print("Freezed VGG16 parameters ...")
+    else: 
+        print("NOT freezing VGG16 parameters ...")
 
     vgg.classifier = nn.Sequential(*list(vgg.classifier._modules.values())[:-1])
 

@@ -11,10 +11,11 @@ import _init_paths
 import os
 import sys
 import numpy as np
-import argparse
-import pprint
-import pdb
+import argparse 
+import pprint 
+import pdb 
 import time
+from tqdm import tqdm
 
 import torch
 from torch.autograd import Variable
@@ -153,7 +154,7 @@ if __name__ == '__main__':
   print(args)
 
   if args.dataset == "pascal_voc":
-      args.imdb_name = "voc_2007_trainval"
+      args.imdb_name = "voc_2007_train"
       args.imdbval_name = "voc_2007_test"
       args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
   elif args.dataset == "pascal_voc_0712":
@@ -162,7 +163,7 @@ if __name__ == '__main__':
       args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
   elif args.dataset == "coco":
       args.imdb_name = "coco_2014_train+coco_2014_valminusminival"
-      args.imdbval_name = "coco_2014_minival"
+      args.imdbval_name = "coco_2015_minival"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
   elif args.dataset == "imagenet":
       args.imdb_name = "imagenet_train"
@@ -172,6 +173,9 @@ if __name__ == '__main__':
       # train sizes: train, smalltrain, minitrain
       # train scale: ['150-50-20', '150-50-50', '500-150-80', '750-250-150', '1750-700-450', '1600-400-20']
       args.imdb_name = "vg_150-50-50_minitrain"
+      args.imdb_name = "vg_alldata_smalltrain"
+      args.imdb_name = "vg_alldata_minitrain"
+      args.imdb_name = "vg_alldata_train"
       args.imdbval_name = "vg_150-50-50_minival"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
 
@@ -247,6 +251,7 @@ if __name__ == '__main__':
     pdb.set_trace()
 
   fasterRCNN.create_architecture()
+  print(fasterRCNN)
 
   lr = cfg.TRAIN.LEARNING_RATE
   lr = args.lr
@@ -263,7 +268,6 @@ if __name__ == '__main__':
         params += [{'params':[value],'lr':lr, 'weight_decay': cfg.TRAIN.WEIGHT_DECAY}]
 
   if args.optimizer == "adam":
-    lr = lr * 0.1
     optimizer = torch.optim.Adam(params)
 
   elif args.optimizer == "sgd":
@@ -306,7 +310,7 @@ if __name__ == '__main__':
         lr *= args.lr_decay_gamma
 
     data_iter = iter(dataloader)
-    for step in range(iters_per_epoch):
+    for step in tqdm(range(iters_per_epoch)):
       data = next(data_iter)
       im_data.data.resize_(data[0].size()).copy_(data[0])
       im_info.data.resize_(data[1].size()).copy_(data[1])
@@ -350,10 +354,10 @@ if __name__ == '__main__':
           fg_cnt = torch.sum(rois_label.data.ne(0))
           bg_cnt = rois_label.data.numel() - fg_cnt
 
-        print("[session %d][epoch %2d][iter %4d/%4d] loss: %.4f, lr: %.2e" \
+        tqdm.write("[session %d][epoch %2d][iter %4d/%4d] loss: %.4f, lr: %.2e" \
                                 % (args.session, epoch, step, iters_per_epoch, loss_temp, lr))
-        print("\t\t\tfg/bg=(%d/%d), time cost: %f" % (fg_cnt, bg_cnt, end-start))
-        print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
+        tqdm.write("\t\t\tfg/bg=(%d/%d), time cost: %f" % (fg_cnt, bg_cnt, end-start))
+        tqdm.write("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
                       % (loss_rpn_cls, loss_rpn_box, loss_rcnn_cls, loss_rcnn_box))
         if args.use_tfboard:
           info = {
@@ -378,7 +382,7 @@ if __name__ == '__main__':
       'pooling_mode': cfg.POOLING_MODE,
       'class_agnostic': args.class_agnostic,
     }, save_name)
-    print('save model: {}'.format(save_name))
+    tqdm.write('save model: {}'.format(save_name))
 
   if args.use_tfboard:
     logger.close()

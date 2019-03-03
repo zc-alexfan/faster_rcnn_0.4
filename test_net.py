@@ -16,6 +16,7 @@ import pprint
 import pdb
 import time
 import cv2
+from tqdm import tqdm
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
@@ -31,7 +32,9 @@ from model.utils.net_utils import save_net, load_net, vis_detections
 from model.faster_rcnn.vgg16 import vgg16
 from model.faster_rcnn.resnet import resnet
 
+
 import pdb
+
 
 try:
     xrange          # Python 2
@@ -121,8 +124,11 @@ if __name__ == '__main__':
       args.imdbval_name = "imagenet_val"
       args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
   elif args.dataset == "vg":
-      args.imdb_name = "vg_150-50-50_minitrain"
-      args.imdbval_name = "vg_150-50-50_minival"
+      args.imdb_name = "vg_alldata_minitrain"
+      args.imdbval_name = "vg_alldata_minival"
+      args.imdbval_name = "vg_alldata_singleton"
+      args.imdbval_name = "vg_alldata_smallval"
+      args.imdbval_name = "vg_alldata_val"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
   args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
@@ -224,7 +230,7 @@ if __name__ == '__main__':
 
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
-  for i in range(num_images):
+  for i in tqdm(range(num_images)):
 
       data = next(data_iter)
       im_data.data.resize_(data[0].size()).copy_(data[0])
@@ -306,9 +312,10 @@ if __name__ == '__main__':
       misc_toc = time.time()
       nms_time = misc_toc - misc_tic
 
-      sys.stdout.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
-          .format(i + 1, num_images, detect_time, nms_time))
-      sys.stdout.flush()
+      if(i % 100 == 0):
+        tqdm.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
+            .format(i + 1, num_images, detect_time, nms_time))
+      #sys.stdout.flush()
 
       if vis:
           cv2.imwrite('result.png', im2show)
