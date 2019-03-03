@@ -120,7 +120,9 @@ if __name__ == '__main__':
   imdb.competition_mode(on=True)
   print('{:d} roidb entries'.format(len(roidb)))
 
-  feature_file = './data/features/' + args.imdb_name + '.pkl'
+  feature_folder = './data/features/' + args.imdb_name + '/' 
+  if not os.path.exists(feature_folder):
+    os.makedirs(feature_folder)
 
   input_dir = args.load_dir + "/" + args.net + "/" + args.dataset
   if not os.path.exists(input_dir):
@@ -281,10 +283,12 @@ if __name__ == '__main__':
       image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)]
       image_summary.pred.scores_nms = vgg_extractor._detach2numpy(cls_scores) #### for all boxes? inspect
 
-      all_summary.append(image_summary)
+      feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"
+      with open(feature_file, 'wb') as f:
+          pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
-  with open(feature_file, 'wb') as f:
-      pickle.dump(all_summary, f, pickle.HIGHEST_PROTOCOL)
+      #all_summary.append(image_summary)
+
 
   with open(det_file, 'wb') as f:
       pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
