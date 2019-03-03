@@ -69,6 +69,7 @@ class _fasterRCNN(nn.Module):
         rois = Variable(rois)
         # do roi pooling based on predicted rois
 
+        import pdb; pdb.set_trace() 
         if cfg.POOLING_MODE == 'crop':
             # pdb.set_trace()
             # pooled_feat_anchor = _crop_pool_layer(base_feat, rois.view(-1, 5))

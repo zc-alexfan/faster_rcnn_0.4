@@ -2,9 +2,7 @@
 # Pytorch multi-GPU Faster R-CNN
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Jiasen Lu, Jianwei Yang, based on code from Ross Girshick
-# --------------------------------------------------------
-from __future__ import absolute_import
-from __future__ import division
+# -------------------------------------------------------- from __future__ import absolute_import from __future__ import division
 from __future__ import print_function
 
 import _init_paths
@@ -284,11 +282,56 @@ if __name__ == '__main__':
     args.session = checkpoint['session']
     args.start_epoch = checkpoint['epoch']
     fasterRCNN.load_state_dict(checkpoint['model'])
+
+    """
+    for param in fasterRCNN.RCNN_base.parameters():
+      param.requires_grad = False
+    print(">>>> Freezed VGG16 parameters ...")
+
+    for param in fasterRCNN.RCNN_top.parameters():
+      param.requires_grad = False
+    print(">>>> Freezed RCNN_top parameters ...")
+
+    for param in fasterRCNN.RCNN_cls_score.parameters():
+      param.requires_grad = False
+    print(">>>> Freezed cls_score parameters ...")
+
+    for param in fasterRCNN.RCNN_bbox_pred.parameters():
+      param.requires_grad = False
+    print(">>>> Freezed bbox_pred parameters ...")
+    """
+
+
+
+
     optimizer.load_state_dict(checkpoint['optimizer'])
     lr = optimizer.param_groups[0]['lr']
     if 'pooling_mode' in checkpoint.keys():
       cfg.POOLING_MODE = checkpoint['pooling_mode']
     print("loaded checkpoint %s" % (load_name))
+
+    #adjust_learning_rate(optimizer, args.lr_decay_gamma)
+    #lr *= args.lr_decay_gamma
+
+  """
+  for param in fasterRCNN.RCNN_base.parameters():
+    param.requires_grad = False
+  print(">>>> Freezed VGG16 parameters ...")
+
+  for param in fasterRCNN.RCNN_top.parameters():
+    param.requires_grad = False
+  print(">>>> Freezed RCNN_top parameters ...")
+
+  for param in fasterRCNN.RCNN_cls_score.parameters():
+    param.requires_grad = False
+  print(">>>> Freezed cls_score parameters ...")
+
+  for param in fasterRCNN.RCNN_bbox_pred.parameters():
+    param.requires_grad = False
+  print(">>>> Freezed bbox_pred parameters ...")
+  """
+
+
 
   if args.mGPUs:
     fasterRCNN = nn.DataParallel(fasterRCNN)
@@ -308,6 +351,7 @@ if __name__ == '__main__':
     if epoch % (args.lr_decay_step + 1) == 0:
         adjust_learning_rate(optimizer, args.lr_decay_gamma)
         lr *= args.lr_decay_gamma
+    
 
     data_iter = iter(dataloader)
     for step in tqdm(range(iters_per_epoch)):
