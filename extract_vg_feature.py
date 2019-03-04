@@ -87,6 +87,10 @@ def parse_args():
 
 if __name__ == '__main__':
 
+
+  metaInfo = edict()
+  
+
   args = parse_args()
 
   print('Called with args:')
@@ -115,14 +119,28 @@ if __name__ == '__main__':
   print('Using config:')
   pprint.pprint(cfg)
 
-  cfg.TRAIN.USE_FLIPPED = False
-  imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdb_name, False)
-  imdb.competition_mode(on=True)
-  print('{:d} roidb entries'.format(len(roidb)))
-
   feature_folder = './data/features/' + args.imdb_name + '/' 
   if not os.path.exists(feature_folder):
     os.makedirs(feature_folder)
+
+  cfg.TRAIN.USE_FLIPPED = False
+  imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdb_name, False)
+  imdb.competition_mode(on=True)
+
+  metaInfo.imdb_name = args.imdb_name
+  metaInfo.imdb_classes = imdb.classes
+  metaInfo.imdb_image_index = imdb.image_index
+
+  meta_file = feature_folder + args.imdb_name + ".meta"
+  with open(meta_file, 'wb') as f:
+      pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
+
+
+   
+
+
+  print('{:d} roidb entries'.format(len(roidb)))
+
 
   input_dir = args.load_dir + "/" + args.net + "/" + args.dataset
   if not os.path.exists(input_dir):
@@ -192,7 +210,7 @@ if __name__ == '__main__':
 
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
-  all_summary = []
+  #all_summary = []
   for i in tqdm(range(num_images)):
 
       data = next(data_iter)
@@ -209,9 +227,12 @@ if __name__ == '__main__':
 
       ###### assume: order does not change
       image_summary.info.image_idx = imdb.image_index[i]
+      image_summary.info.im_data = vgg_extractor._detach2numpy(im_data)
 
       scores = cls_prob.data
-      boxes = rois.data[:, :, 1:5]
+      boxes = rois.data[:, :, 1:5] # (x1, y1, x2, y2)
+      # bbox_pred is used to compute deltas 
+      
 
       if cfg.TEST.BBOX_REG:
           # Apply bounding-box regression deltas
@@ -219,32 +240,69 @@ if __name__ == '__main__':
           if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
           # Optionally normalize targets by a precomputed mean and stdev
             if args.class_agnostic:
-                box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                box_deltas = box_deltas.view(-1, 4) \
+                    * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
                            + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
                 box_deltas = box_deltas.view(1, -1, 4)
             else:
-                box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                           + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+                """
+                ### should compute my own stds?  
+                Normalize: (x - mean)/std = y
+                Unnormalize: x = y*std + mean
+                (Pdb) cfg.TRAIN.BBOX_NORMALIZE_STDS: [0.1, 0.1, 0.2, 0.2]
+                cfg.TRAIN.BBOX_NORMALIZE_MEANS [0.0, 0.0, 0.0, 0.0]
+
+                box_detas: the offset from anchors? (dx, dy, dw, dh)
+                rois/boxes: the anchor locations? 
+                """
+
+                box_deltas = box_deltas.view(-1, 4) \
+                    * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                    + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+
                 box_deltas = box_deltas.view(1, -1, 4 * len(imdb.classes))
 
+          # adjust boxes by deltas; output in (x1, y1, x2, y2)
           pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
+          # avoid boxes go out of image
           pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
       else:
           # Simply repeat the boxes, once for each class
           pred_boxes = np.tile(boxes, (1, scores.shape[1]))
 
-      pred_boxes /= data[1][0][2].item()
+      # recall: datainfo = tensor([ 800.0000,  600.0000,    1.6000]))
+      # raw image has size: 500 x 375
+      # then it is scaled to: 800 x 600, 1.6 is the scale
+      # scale boxes back to the original size
+      pred_boxes /= data[1][0][2].item()  # (x1, y1, x2, y2)
 
-      scores = scores.squeeze()
-      pred_boxes = pred_boxes.squeeze()
+      # phase 1
+      #import pdb; pdb.set_trace() 
+
+      # each proposal has a prob distri.
+      scores = scores.squeeze() # torch.Size([300, 151])
+
+      # each proposal has 604 bboxes, one box for each class
+      pred_boxes = pred_boxes.squeeze() # torch.Size([300, 604]), 604=4*151
 
 
       detect_time = time.time() - det_tic
       misc_tic = time.time()
+
+      # non-maximal suppresion on each class
+      # phase 2
+
+      """
+      loop over each class, consider each class separately
+      i.e. each class has 300 proposals
+      at each iteartion, nms, to decide which of the 300 proposals it should keep.
+      """
       for j in xrange(1, imdb.num_classes):
           inds = torch.nonzero(scores[:,j]>thresh).view(-1)
           # if there is det
           if inds.numel() > 0:
+            # scores[:, j].shape == 300 
+            # scores[:, j][inds] just for subset of that 300 boxes
             cls_scores = scores[:,j][inds]
             _, order = torch.sort(cls_scores, 0, True)
             if args.class_agnostic:
@@ -252,25 +310,54 @@ if __name__ == '__main__':
             else:
               cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
             
+            """
+            (Pdb) cls_boxes.shape
+            torch.Size([300, 4])
+            (Pdb) cls_scores.shape
+            torch.Size([300])
+            (Pdb) cls_dets.shape
+            torch.Size([300, 5])
+            """
             cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
-            # cls_dets = torch.cat((cls_boxes, cls_scores), 1)
             cls_dets = cls_dets[order]
+
+            """
+            (Pdb) keep
+            tensor([[   0], [   3], [  10], [  14], [  27],
+                    [  29], [  31], [  45], [  70], [  76],
+                    [  83], [ 103], [ 114], [ 115], [ 133],
+                    [ 135], [ 136]], dtype=torch.int32, device='cuda:0')
+            """
             keep = nms(cls_dets, cfg.TEST.NMS)
+            #image_summary.pred.pooled_feat = image_summary.pred.pooled_feat[keep, :]
+
+            """
+            (Pdb) cls_dets.shape
+            torch.Size([17, 5])
+            """
             cls_dets = cls_dets[keep.view(-1).long()]
             all_boxes[j][i] = cls_dets.cpu().numpy()
           else:
             all_boxes[j][i] = empty_array
-
+      
       # Limit to max_per_image detections *over all classes*
+      # phase 3
+      curr_boxes = []
+      curr_scores = []
       if max_per_image > 0:
+          # flatten scores for all boxes of this image
           image_scores = np.hstack([all_boxes[j][i][:, -1]
                                     for j in xrange(1, imdb.num_classes)])
           if len(image_scores) > max_per_image:
+              # threshold to obtain max_per_image
               image_thresh = np.sort(image_scores)[-max_per_image]
+
+              # for each class, extract boxes > threshold 
               for j in xrange(1, imdb.num_classes):
                   keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
                   all_boxes[j][i] = all_boxes[j][i][keep, :]
 
+      image_summary.pred.cls_prob = image_scores
 
       # Done nms on bboxes
       misc_toc = time.time()
@@ -279,8 +366,8 @@ if __name__ == '__main__':
       if(i % 100 == 0):
         tqdm.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
             .format(i + 1, num_images, detect_time, nms_time))
-      #sys.stdout.flush()
-      image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)]
+
+      image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
       image_summary.pred.scores_nms = vgg_extractor._detach2numpy(cls_scores) #### for all boxes? inspect
 
       feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"

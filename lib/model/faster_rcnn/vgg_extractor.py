@@ -98,8 +98,8 @@ class vgg_extractor(vgg16):
     cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
     bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
 
-    image_summary.pred.bbox_pred = vgg_extractor._detach2numpy(bbox_pred)
-    image_summary.pred.cls_prob = vgg_extractor._detach2numpy(cls_prob)
+    #image_summary.pred.bbox_pred = vgg_extractor._detach2numpy(bbox_pred)
+    #image_summary.pred.cls_prob = vgg_extractor._detach2numpy(cls_prob)
     return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, image_summary
 
 

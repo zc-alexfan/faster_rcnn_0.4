@@ -75,8 +75,9 @@ def bbox_transform_batch(ex_rois, gt_rois):
     return targets
 
 def bbox_transform_inv(boxes, deltas, batch_size):
-    widths = boxes[:, :, 2] - boxes[:, :, 0] + 1.0
-    heights = boxes[:, :, 3] - boxes[:, :, 1] + 1.0
+    # (x1:0, y1:1 , x2:2, y2:3)
+    widths = boxes[:, :, 2] - boxes[:, :, 0] + 1.0 # x2 - x1
+    heights = boxes[:, :, 3] - boxes[:, :, 1] + 1.0 # y2 - y1
     ctr_x = boxes[:, :, 0] + 0.5 * widths
     ctr_y = boxes[:, :, 1] + 0.5 * heights
 
@@ -102,6 +103,7 @@ def bbox_transform_inv(boxes, deltas, batch_size):
 
     return pred_boxes
 
+
 def clip_boxes_batch(boxes, im_shape, batch_size):
     """
     Clip boxes to image boundaries.
@@ -125,7 +127,7 @@ def clip_boxes_batch(boxes, im_shape, batch_size):
 def clip_boxes(boxes, im_shape, batch_size):
 
     for i in range(batch_size):
-        boxes[i,:,0::4].clamp_(0, im_shape[i, 1]-1)
+        boxes[i,:,0::4].clamp_(0, im_shape[i, 1]-1) 
         boxes[i,:,1::4].clamp_(0, im_shape[i, 0]-1)
         boxes[i,:,2::4].clamp_(0, im_shape[i, 1]-1)
         boxes[i,:,3::4].clamp_(0, im_shape[i, 0]-1)
