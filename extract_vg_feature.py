@@ -106,6 +106,7 @@ if __name__ == '__main__':
   args.imdb_name = "vg_alldata_singleton"
   args.imdb_name = "vg_alldata_smalltrain"
   args.imdb_name = "vg_alldata_minitrain"
+  args.imdb_name = "vg_alldata_minival"
 
   args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
@@ -277,7 +278,6 @@ if __name__ == '__main__':
       pred_boxes /= data[1][0][2].item()  # (x1, y1, x2, y2)
 
       # phase 1
-      #import pdb; pdb.set_trace() 
 
       # each proposal has a prob distri.
       scores = scores.squeeze() # torch.Size([300, 151])
@@ -329,7 +329,6 @@ if __name__ == '__main__':
                     [ 135], [ 136]], dtype=torch.int32, device='cuda:0')
             """
             keep = nms(cls_dets, cfg.TEST.NMS)
-            #image_summary.pred.pooled_feat = image_summary.pred.pooled_feat[keep, :]
 
             """
             (Pdb) cls_dets.shape
@@ -374,7 +373,6 @@ if __name__ == '__main__':
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
-      #all_summary.append(image_summary)
 
 
   with open(det_file, 'wb') as f:
