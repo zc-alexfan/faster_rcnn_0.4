@@ -22,7 +22,6 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.optim as optim
-
 import torchvision.transforms as transforms
 from torch.utils.data.sampler import Sampler
 
@@ -308,6 +307,9 @@ if __name__ == '__main__':
 
 
     optimizer.load_state_dict(checkpoint['optimizer'])
+
+    #optimizer.param_groups[0]['lr'] = 1e-3 ## ###
+
     lr = optimizer.param_groups[0]['lr']
     if 'pooling_mode' in checkpoint.keys():
       cfg.POOLING_MODE = checkpoint['pooling_mode']
@@ -316,10 +318,11 @@ if __name__ == '__main__':
     #adjust_learning_rate(optimizer, args.lr_decay_gamma)
     #lr *= args.lr_decay_gamma
 
-  """
   for param in fasterRCNN.RCNN_base.parameters():
     param.requires_grad = False
   print(">>>> Freezed VGG16 parameters ...")
+
+  """
 
   for param in fasterRCNN.RCNN_top.parameters():
     param.requires_grad = False
@@ -332,6 +335,7 @@ if __name__ == '__main__':
   for param in fasterRCNN.RCNN_bbox_pred.parameters():
     param.requires_grad = False
   print(">>>> Freezed bbox_pred parameters ...")
+
   """
 
 
