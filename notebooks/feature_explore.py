@@ -56,25 +56,7 @@ def normalize_image(_im_summary):
     
     return _im
     
-def visualize_regions(_im, _boxes, _class_labels):
-#     plt.rcParams['figure.figsize'] = [15, 7]
-    plt.imshow(_im)
-    ax = plt.gca()
-    for _region in _boxes:
-        x1, y1, x2, y2, class_id, score = _region
-        x = x1
-        y = y1
-#         w = x2 - x1
-#         h = y2 - y1
-        w = x2
-        h = y2
-        ax.add_patch(Rectangle((x, y), w, h, fill=False, edgecolor='yellow', linewidth=3, alpha=score))
-        ax.text(x, y, _class_labels[class_id] + " %.2f"%(score), style='italic', bbox={'facecolor':'white', 'alpha':1.0, 'pad':1})
-    fig = plt.gcf()
-    plt.tick_params(labelbottom=False, labelleft=False)
-    plt.show()
-    
-def visualize_regions_with_gt(_im, _boxes, _class_labels, _curr_gt, _k_gt):
+def visualize_regions_with_gt(_im, _boxes, _class_labels, _curr_gt, _k_gt, _scale):
     plt.rcParams['figure.figsize'] = [15, 7]
     plt.imshow(_im)
     ax = plt.gca()
@@ -84,7 +66,12 @@ def visualize_regions_with_gt(_im, _boxes, _class_labels, _curr_gt, _k_gt):
     gt_classes = _curr_gt.gt_classes[:_k_gt]
 
     for _region, class_id in zip(gt_boxes, gt_classes):
-        x, y, w, h = _region
+        x1, y1, x2, y2 = _region
+        
+        x = x1; y = y1; w = x2 - x1; h = y2 - y1
+        x *= _scale; y *= _scale; w *= _scale; h *= _scale
+        
+        print("%s: (%1.f, %1.f, %1.f, %1.f)"%(_class_labels[class_id], x, y, w, h))
         ax.add_patch(Rectangle((x, y), w, h, fill=False, edgecolor='red', linewidth=3))
         ax.text(x, y, _class_labels[class_id], style='italic', bbox={'facecolor':'white', 'alpha':1.0, 'pad':1})
     
@@ -92,15 +79,11 @@ def visualize_regions_with_gt(_im, _boxes, _class_labels, _curr_gt, _k_gt):
     # plot prediction
     for _region in _boxes:
         x1, y1, x2, y2, class_id, score = _region
-        x = x1
-        y = y1
-#         w = x2 - x1
-#         h = y2 - y1
-        w = x2
-        h = y2
+        x = x1; y = y1; w = x2 - x1; h = y2 - y1
+        x *= _scale; y *= _scale; w *= _scale; h *= _scale
+        
         ax.add_patch(Rectangle((x, y), w, h, fill=False, edgecolor='yellow', linewidth=3, alpha=score))
         ax.text(x, y, _class_labels[class_id] + " %.2f"%(score), style='italic', bbox={'facecolor':'white', 'alpha':1.0, 'pad':1})
-    
     
     fig = plt.gcf()
     plt.tick_params(labelbottom=False, labelleft=False)
@@ -124,16 +107,20 @@ def formalize_bbox(_im_summary):
 def show_random_image(_feature_path, _images_index, _k, _gt, _k_gt): 
     idx = random.randint(0, len(_images_index)-1)
 
+    # ground truth
+    print("Image index is: %d" %_images_index[idx])
     curr_im_path = str(_images_index[idx]) + ".pkl"
     curr_gt = edict(_gt[idx])
     
+    # image data
     im_summary = pickle.load(open(os.path.join(_feature_path, curr_im_path), 'rb'))
     im = normalize_image(im_summary) # image in RGB with [0, 1] range
     boxes = formalize_bbox(im_summary) # bboxes sorted by confidence
+    _scale = im_summary.gt.im_info[0][2]
     
-    _k = min(_k, len(boxes))
-    _k_gt = min(_k_gt, len(curr_gt.boxes))
-    visualize_regions_with_gt(im, boxes[:_k], class_labels, curr_gt, _k_gt)
+    _k = min(_k, len(boxes)) # num predictions to show
+    _k_gt = min(_k_gt, len(curr_gt.boxes)) # num gt to show
+    visualize_regions_with_gt(im, boxes[:_k], class_labels, curr_gt, _k_gt, _scale)
 
 
 # ## Things you can use
@@ -249,8 +236,8 @@ print(image_index[:10])
 # In[15]:
 
 
-num_pred = 2
-num_gt = 2
+num_pred = 0
+num_gt = 4
 show_random_image(feature_path, image_index, num_pred, gt, num_gt)
 show_random_image(feature_path, image_index, num_pred, gt, num_gt)
 show_random_image(feature_path, image_index, num_pred, gt, num_gt)
@@ -311,10 +298,10 @@ show_random_image(feature_path, image_index, num_pred, gt, num_gt)
 
 # # Test Zone
 
-# In[ ]:
+# In[21]:
 
 
-
+get_ipython().system('jupyter nbconvert --to script feature_explore.ipynb')
 
 
 # In[ ]:

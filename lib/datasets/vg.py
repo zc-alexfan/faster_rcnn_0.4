@@ -228,10 +228,12 @@ class vg(imdb):
             obj_name = obj.find('name').text.lower().strip()
             if obj_name in self._class_to_ind:
                 bbox = obj.find('bndbox')
-                x1 = max(0,float(bbox.find('xmin').text))
-                y1 = max(0,float(bbox.find('ymin').text))
-                x2 = min(width-1,float(bbox.find('xmax').text))
-                y2 = min(height-1,float(bbox.find('ymax').text))
+
+                x1 = max(1, float(bbox.find('xmin').text))
+                y1 = max(1, float(bbox.find('ymin').text))
+                x2 = min(width-1, float(bbox.find('xmax').text))
+                y2 = min(height-1, float(bbox.find('ymax').text))
+
                 # If bboxes are not positive, just give whole image coords (there are a few examples)
                 if x2 < x1 or y2 < y1:
                     print('Failed bbox in %s, object %s' % (filename, obj_name))
