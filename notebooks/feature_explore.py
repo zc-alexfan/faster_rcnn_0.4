@@ -29,7 +29,7 @@ vis = Visualizer(datasplit)
 
 # Show a few more examples: 
 
-# In[11]:
+# In[3]:
 
 
 num_pred = 6

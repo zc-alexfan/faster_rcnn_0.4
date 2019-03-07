@@ -318,11 +318,11 @@ if __name__ == '__main__':
     #adjust_learning_rate(optimizer, args.lr_decay_gamma)
     #lr *= args.lr_decay_gamma
 
+  """
   for param in fasterRCNN.RCNN_base.parameters():
     param.requires_grad = False
   print(">>>> Freezed VGG16 parameters ...")
 
-  """
 
   for param in fasterRCNN.RCNN_top.parameters():
     param.requires_grad = False
@@ -331,11 +331,6 @@ if __name__ == '__main__':
   for param in fasterRCNN.RCNN_cls_score.parameters():
     param.requires_grad = False
   print(">>>> Freezed cls_score parameters ...")
-
-
-
-
-
 
   for param in fasterRCNN.RCNN_bbox_pred.parameters():
     param.requires_grad = False
