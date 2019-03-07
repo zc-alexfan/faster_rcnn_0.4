@@ -15,10 +15,48 @@ from visualizer import Visualizer
 datasplit = 'vg_alldata_minival'
 
 
-# In[2]:
+# In[ ]:
+
+
+import pickle, os
+
+
+# In[ ]:
 
 
 vis = Visualizer(datasplit)
+curr_im_path = str(vis._images_index[0]) + ".pkl"
+im_summary = pickle.load(open(os.path.join(vis._feature_path, curr_im_path), 'rb'))
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+boxes, probs = vis.formalize_bbox(im_summary)
+
+
+# In[ ]:
+
+
+boxes
+
+
+# In[ ]:
+
+
+len(probs)
+
+
+# In[ ]:
+
+
+probs[0].shape
 
 
 # # Features of image
@@ -29,25 +67,25 @@ vis = Visualizer(datasplit)
 
 # Show a few more examples: 
 
-# In[3]:
+# In[ ]:
 
 
 num_pred = 6
 num_gt = 0
 vis.show_random_image(num_pred, num_gt)
 vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
+# vis.show_random_image(num_pred, num_gt)
 
 
 # ## What is 300?
@@ -60,31 +98,31 @@ vis.show_random_image(num_pred, num_gt)
 
 # Pooled feature of each proposal region. It has dimension: `proposal x depth x width x height`. We are going to use this as features to learn Graph RCNN. 
 
-# In[4]:
+# In[ ]:
 
 
 # im_summary.pred.pooled_feat.shape 
 
 
-# In[5]:
+# In[ ]:
 
 
 # im_summary.pred.cls_prob.shape
 
 
-# In[6]:
+# In[ ]:
 
 
 # im_summary.pred.scores_nms.shape
 
 
-# In[7]:
+# In[ ]:
 
 
 # im_summary.pred.rois.shape
 
 
-# In[8]:
+# In[ ]:
 
 
 # len(im_summary.pred.bbox_nms)
@@ -92,7 +130,7 @@ vis.show_random_image(num_pred, num_gt)
 
 # # Test Zone
 
-# In[9]:
+# In[ ]:
 
 
 get_ipython().system('jupyter nbconvert --to script feature_explore.ipynb')

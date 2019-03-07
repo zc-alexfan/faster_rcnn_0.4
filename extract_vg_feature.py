@@ -197,6 +197,9 @@ if __name__ == '__main__':
   all_boxes = [[[] for _ in xrange(num_images)]
                for _ in xrange(imdb.num_classes)]
 
+  all_probs = [[[] for _ in xrange(num_images)]
+               for _ in xrange(imdb.num_classes)]
+
   output_dir = get_output_dir(imdb, save_name)
   dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1, \
                         imdb.num_classes, training=False, normalize = False)
@@ -230,6 +233,7 @@ if __name__ == '__main__':
       image_summary.info.image_idx = imdb.image_index[i]
       image_summary.info.im_data = vgg_extractor._detach2numpy(im_data)
 
+      # phase 0 
       scores = cls_prob.data
       boxes = rois.data[:, :, 1:5] # (x1, y1, x2, y2)
       # bbox_pred is used to compute deltas 
@@ -300,6 +304,7 @@ if __name__ == '__main__':
           inds = torch.nonzero(scores[:,j]>thresh).view(-1)
           # if there is det
           if inds.numel() > 0:
+            curr_prob = scores # 300 x 151
             # scores[:, j].shape == 300 
             # scores[:, j][inds] just for subset of that 300 boxes
             cls_scores = scores[:,j][inds]
@@ -319,6 +324,7 @@ if __name__ == '__main__':
             """
             cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
             cls_dets = cls_dets[order]
+            curr_prob = curr_prob[order]
 
             """
             (Pdb) keep
@@ -334,9 +340,12 @@ if __name__ == '__main__':
             torch.Size([17, 5])
             """
             cls_dets = cls_dets[keep.view(-1).long()]
+            curr_prob = curr_prob[keep.view(-1).long()]
             all_boxes[j][i] = cls_dets.cpu().numpy()
+            all_probs[j][i] = curr_prob.cpu().numpy()
           else:
             all_boxes[j][i] = empty_array
+            all_probs[j][i] = empty_array
       
       # Limit to max_per_image detections *over all classes*
       # phase 3
@@ -354,8 +363,8 @@ if __name__ == '__main__':
               for j in xrange(1, imdb.num_classes):
                   keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
                   all_boxes[j][i] = all_boxes[j][i][keep, :]
+                  all_probs[j][i] = all_probs[j][i][keep, :]
 
-      image_summary.pred.cls_prob = image_scores
 
       # Done nms on bboxes
       misc_toc = time.time()
@@ -365,8 +374,9 @@ if __name__ == '__main__':
         tqdm.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
             .format(i + 1, num_images, detect_time, nms_time))
 
+      image_summary.pred.cls_prob = [all_probs[j][i] for j in range(imdb.num_classes)]
       image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
-      image_summary.pred.scores_nms = vgg_extractor._detach2numpy(cls_scores) #### for all boxes? inspect
+      #image_summary.pred.scores_nms = vgg_extractor._detach2numpy(cls_scores) #### for all boxes? inspect
 
       feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"
       with open(feature_file, 'wb') as f:

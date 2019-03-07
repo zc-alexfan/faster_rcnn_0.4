@@ -87,13 +87,26 @@ class Visualizer():
         The returned list is sorted descendingly according to score. 
         """
         boxes = [] # each element: x, y, w, h, class_id, score 
-        for class_id, bboxes in enumerate(_im_summary.pred.bbox_nms):
-            for bbox in bboxes:
+        probs = [] # prob distribution for each bounding box
+        
+        for class_id, items in enumerate(_im_summary.pred.bbox_nms):
+            for bbox in items:
                 x1, y1, x2, y2, score = bbox
                 boxes.append([x1, y1, x2, y2, class_id, score])
+        
+        for class_id, items in enumerate(_im_summary.pred.cls_prob):
+            for cls_prob in items:                
+                probs.append(cls_prob)
+                
+        assert len(boxes) == len(probs)
 
-        boxes.sort(key=lambda x: -x[5]) # sort by confidence descendingly
-        return boxes
+        bundles = list(zip(boxes, probs))
+        bundles = sorted(bundles, key=lambda x: x[0][-1], reverse = True) # sort by confidence descendingly 
+        
+        boxes, probs = zip(*bundles)
+        
+        return (list(boxes), list(probs))
+        
 
     def show_random_image(self, _k, _k_gt): 
         idx = random.randint(0, len(self._images_index)-1)
@@ -106,7 +119,7 @@ class Visualizer():
         # image data
         im_summary = pickle.load(open(os.path.join(self._feature_path, curr_im_path), 'rb'))
         im = self.normalize_image(im_summary) # image in RGB with [0, 1] range
-        boxes = self.formalize_bbox(im_summary) # bboxes sorted by confidence
+        boxes, _ = self.formalize_bbox(im_summary) # bboxes sorted by confidence
         _scale = im_summary.gt.im_info[0][2]
 
         _k = min(_k, len(boxes)) # num predictions to show
