@@ -200,6 +200,11 @@ if __name__ == '__main__':
   all_probs = [[[] for _ in xrange(num_images)]
                for _ in xrange(imdb.num_classes)]
 
+  all_feat = [[[] for _ in xrange(num_images)]
+               for _ in xrange(imdb.num_classes)]
+
+  all_feat_class = [[] for _ in xrange(imdb.num_classes)]
+
   output_dir = get_output_dir(imdb, save_name)
   dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1, \
                         imdb.num_classes, training=False, normalize = False)
@@ -284,6 +289,7 @@ if __name__ == '__main__':
 
       # each proposal has a prob distri.
       scores = scores.squeeze() # torch.Size([300, 151])
+      pooled_feat_backup = image_summary.pred.pooled_feat
 
       # each proposal has 604 bboxes, one box for each class
       pred_boxes = pred_boxes.squeeze() # torch.Size([300, 604]), 604=4*151
@@ -305,6 +311,8 @@ if __name__ == '__main__':
           # if there is det
           if inds.numel() > 0:
             curr_prob = scores # 300 x 151
+            curr_feat = pooled_feat_backup # 300 x 512 x 7 x 7 
+
             # scores[:, j].shape == 300 
             # scores[:, j][inds] just for subset of that 300 boxes
             cls_scores = scores[:,j][inds]
@@ -325,6 +333,7 @@ if __name__ == '__main__':
             cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
             cls_dets = cls_dets[order]
             curr_prob = curr_prob[order]
+            curr_feat = curr_feat[order]
 
             """
             (Pdb) keep
@@ -341,11 +350,15 @@ if __name__ == '__main__':
             """
             cls_dets = cls_dets[keep.view(-1).long()]
             curr_prob = curr_prob[keep.view(-1).long()]
+            curr_feat = curr_feat[keep.view(-1).long()]
+
             all_boxes[j][i] = cls_dets.cpu().numpy()
             all_probs[j][i] = curr_prob.cpu().numpy()
+            all_feat[j][i] = curr_feat
           else:
             all_boxes[j][i] = empty_array
             all_probs[j][i] = empty_array
+            all_feat[j][i] = empty_array
       
       # Limit to max_per_image detections *over all classes*
       # phase 3
@@ -376,11 +389,20 @@ if __name__ == '__main__':
 
       image_summary.pred.cls_prob = [all_probs[j][i] for j in range(imdb.num_classes)]
       image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
+      image_summary.pred.pooled_feat = [all_feat[j][i] for j in range(imdb.num_classes)] # bboxes after nms
+
+
+
+
+
       #image_summary.pred.scores_nms = vgg_extractor._detach2numpy(cls_scores) #### for all boxes? inspect
 
       feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
+
+      # release RAM
+      all_feat[]
 
 
 

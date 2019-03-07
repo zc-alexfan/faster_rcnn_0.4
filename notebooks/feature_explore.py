@@ -15,13 +15,13 @@ from visualizer import Visualizer
 datasplit = 'vg_alldata_minival'
 
 
-# In[ ]:
+# In[2]:
 
 
 import pickle, os
 
 
-# In[ ]:
+# In[3]:
 
 
 vis = Visualizer(datasplit)
@@ -35,7 +35,7 @@ im_summary = pickle.load(open(os.path.join(vis._feature_path, curr_im_path), 'rb
 
 
 
-# In[ ]:
+# In[4]:
 
 
 boxes, probs = vis.formalize_bbox(im_summary)
@@ -44,19 +44,13 @@ boxes, probs = vis.formalize_bbox(im_summary)
 # In[ ]:
 
 
-boxes
+boxes[:10]
 
 
 # In[ ]:
 
 
-len(probs)
-
-
-# In[ ]:
-
-
-probs[0].shape
+probs[:10]
 
 
 # # Features of image

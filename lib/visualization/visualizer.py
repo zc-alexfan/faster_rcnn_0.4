@@ -10,7 +10,7 @@ import numpy as np
 
 class Visualizer(): 
     def __init__(self, _datasplit, _seed=2): 
-        np.random.seed(_seed)
+        random.seed(_seed)
         self._datasplit = _datasplit
         self._cache_path = os.path.join('../data/cache/%s_gt_roidb.pkl'%(_datasplit))
         self._feature_path = os.path.join('../data/features/%s/'%(_datasplit))
