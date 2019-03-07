@@ -41,9 +41,7 @@ class vgg_extractor(vgg16):
     image_summary.pred = edict()
     image_summary.info = edict()
 
-    image_summary.gt.gt_boxes = vgg_extractor._detach2numpy(gt_boxes)
-    image_summary.gt.num_boxes = vgg_extractor._detach2numpy(num_boxes)
-    image_summary.gt.im_info = vgg_extractor._detach2numpy(im_info)
+    image_summary.info.dim_scale = vgg_extractor._detach2numpy(im_info)
 
 
     # feed image data to base model to obtain base feature map
@@ -79,6 +77,7 @@ class vgg_extractor(vgg16):
     pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
 
     image_summary.pred.pooled_feat = vgg_extractor._detach2numpy(pooled_feat)
+    image_summary.info.formatted = False
 
     # feed pooled features to top model
     pooled_feat = self._head_to_tail(pooled_feat)

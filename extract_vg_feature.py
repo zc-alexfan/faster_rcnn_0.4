@@ -131,8 +131,9 @@ if __name__ == '__main__':
   metaInfo.imdb_name = args.imdb_name
   metaInfo.imdb_classes = imdb.classes
   metaInfo.imdb_image_index = imdb.image_index
+  metaInfo.formatted = False
 
-  meta_file = feature_folder + args.imdb_name + ".meta"
+  meta_file = feature_folder + "meta.pkl"
   with open(meta_file, 'wb') as f:
       pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
 
@@ -377,6 +378,7 @@ if __name__ == '__main__':
                   keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
                   all_boxes[j][i] = all_boxes[j][i][keep, :]
                   all_probs[j][i] = all_probs[j][i][keep, :]
+                  all_feat_class[j] = all_feat_class[j][keep, :]
 
 
       # Done nms on bboxes
