@@ -203,7 +203,6 @@ if __name__ == '__main__':
   all_feat = [[[] for _ in xrange(num_images)]
                for _ in xrange(imdb.num_classes)]
 
-  all_feat_class = [[] for _ in xrange(imdb.num_classes)]
 
   output_dir = get_output_dir(imdb, save_name)
   dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1, \
@@ -221,6 +220,7 @@ if __name__ == '__main__':
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
   #all_summary = []
   for i in tqdm(range(num_images)):
+      all_feat_class = [[] for _ in xrange(imdb.num_classes)]
 
       data = next(data_iter)
       im_data.data.resize_(data[0].size()).copy_(data[0])
@@ -354,11 +354,11 @@ if __name__ == '__main__':
 
             all_boxes[j][i] = cls_dets.cpu().numpy()
             all_probs[j][i] = curr_prob.cpu().numpy()
-            all_feat[j][i] = curr_feat
+            all_feat_class[j] = curr_feat
           else:
             all_boxes[j][i] = empty_array
             all_probs[j][i] = empty_array
-            all_feat[j][i] = empty_array
+            all_feat_class[j] = empty_array
       
       # Limit to max_per_image detections *over all classes*
       # phase 3
@@ -389,7 +389,7 @@ if __name__ == '__main__':
 
       image_summary.pred.cls_prob = [all_probs[j][i] for j in range(imdb.num_classes)]
       image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
-      image_summary.pred.pooled_feat = [all_feat[j][i] for j in range(imdb.num_classes)] # bboxes after nms
+      image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(imdb.num_classes)] # bboxes after nms
 
 
 
@@ -401,8 +401,6 @@ if __name__ == '__main__':
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
-      # release RAM
-      all_feat[]
 
 
 
