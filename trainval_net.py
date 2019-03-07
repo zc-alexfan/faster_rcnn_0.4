@@ -173,9 +173,9 @@ if __name__ == '__main__':
       # train sizes: train, smalltrain, minitrain
       # train scale: ['150-50-20', '150-50-50', '500-150-80', '750-250-150', '1750-700-450', '1600-400-20']
       args.imdb_name = "vg_150-50-50_minitrain"
-      args.imdb_name = "vg_alldata_smalltrain"
-      args.imdb_name = "vg_alldata_minitrain"
       args.imdb_name = "vg_alldata_train"
+      args.imdb_name = "vg_alldata_minitrain"
+      args.imdb_name = "vg_alldata_smalltrain"
       args.imdbval_name = "vg_150-50-50_minival"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '50']
 
@@ -331,6 +331,11 @@ if __name__ == '__main__':
   for param in fasterRCNN.RCNN_cls_score.parameters():
     param.requires_grad = False
   print(">>>> Freezed cls_score parameters ...")
+
+
+
+
+
 
   for param in fasterRCNN.RCNN_bbox_pred.parameters():
     param.requires_grad = False

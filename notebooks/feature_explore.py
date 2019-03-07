@@ -29,11 +29,20 @@ vis = Visualizer(datasplit)
 
 # Show a few more examples: 
 
-# In[14]:
+# In[11]:
 
 
-num_pred = 0
-num_gt = 4
+num_pred = 6
+num_gt = 0
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
+vis.show_random_image(num_pred, num_gt)
 vis.show_random_image(num_pred, num_gt)
 vis.show_random_image(num_pred, num_gt)
 vis.show_random_image(num_pred, num_gt)
@@ -51,31 +60,31 @@ vis.show_random_image(num_pred, num_gt)
 
 # Pooled feature of each proposal region. It has dimension: `proposal x depth x width x height`. We are going to use this as features to learn Graph RCNN. 
 
-# In[15]:
+# In[4]:
 
 
 # im_summary.pred.pooled_feat.shape 
 
 
-# In[16]:
+# In[5]:
 
 
 # im_summary.pred.cls_prob.shape
 
 
-# In[17]:
+# In[6]:
 
 
 # im_summary.pred.scores_nms.shape
 
 
-# In[18]:
+# In[7]:
 
 
 # im_summary.pred.rois.shape
 
 
-# In[19]:
+# In[8]:
 
 
 # len(im_summary.pred.bbox_nms)
@@ -83,7 +92,7 @@ vis.show_random_image(num_pred, num_gt)
 
 # # Test Zone
 
-# In[20]:
+# In[9]:
 
 
 get_ipython().system('jupyter nbconvert --to script feature_explore.ipynb')
