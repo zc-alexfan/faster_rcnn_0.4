@@ -15,6 +15,7 @@ assert torch.__version__ == '0.4.0'
 import sys
 sys.path.append('/home/alex/faster-rcnn.pytorch/lib/visualization')
 from visualizer import Visualizer
+from easydict import EasyDict as edict
 datasplit = 'vg_alldata_minival'
 
 
@@ -28,62 +29,40 @@ import pickle, os
 
 
 vis = Visualizer(datasplit)
-curr_im_path = str(vis._images_index[0]) + ".pkl"
-im_summary = pickle.load(open(os.path.join(vis._feature_path, curr_im_path), 'rb'))
-boxes, probs, feats = vis.formalize_bbox(im_summary)
+# curr_im_path = str(vis._images_index[0]) + ".pkl"
+# im_summary = pickle.load(open(os.path.join(vis._feature_path, curr_im_path), 'rb'))
+# boxes, probs, feats = vis.formalize_bbox(im_summary)
 
 
-# In[15]:
+# In[4]:
 
 
-im_summary = pickle.load(open(os.path.join(vis._feature_path, curr_im_path), 'rb'))
-boxes, probs, feats = vis.formalize_bbox(im_summary)
-im_summary.pred.pooled_feat = feats
-im_summary.pred.bbox_nms = boxes
-im_summary.pred.cls_prob = probs
-
-
-# In[23]:
-
-
-probs
-
-
-# In[16]:
-
-
-im_summary.pred.keys()
+vis.show_random_image(4, 3)
 
 
 # In[5]:
 
 
-boxes[:10]
+im = vis.get_image_by_idx(0)
 
 
-# In[6]:
+# In[9]:
 
 
-len(boxes[0])
+meta = vis.get_meta()
 
 
-# In[7]:
+# In[12]:
 
 
-probs[0].shape
-
-
-# In[8]:
-
-
-feats[0].shape
+meta.imdb_classes[im.pred.bbox_nms[0][-2]]
 
 
 # # Features of image
 
 # Show a few more examples: 
 
-# In[9]:
+# In[7]:
 
 
 num_pred = 6
@@ -116,7 +95,7 @@ vis.show_random_image(num_pred, num_gt)
 
 # # Test Zone
 
-# In[10]:
+# In[8]:
 
 
 get_ipython().system('jupyter nbconvert --to script feature_explore.ipynb')

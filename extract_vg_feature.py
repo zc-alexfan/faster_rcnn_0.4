@@ -29,10 +29,60 @@ from model.rpn.bbox_transform import bbox_transform_inv
 from model.faster_rcnn.vgg_extractor import vgg_extractor
 from easydict import EasyDict as edict
 
+import gzip
+
 try:
     xrange          # Python 2
 except NameError:
     xrange = range  # Python 3
+
+def formalize_bbox(_im_summary): 
+    """
+    Extract bboxes from all classes and return a list of bbox. 
+    Each element of the list is in the form: [x1, y1, x2, y2, class_id, score]. 
+    The returned list is sorted descendingly according to score. 
+    """
+    boxes = [] # each element: x, y, w, h, class_id, score 
+    probs = [] # prob distribution for each bounding box
+    feats = [] # pooled features
+    
+    for class_id, items in enumerate(_im_summary.pred.bbox_nms):
+        for bbox in items:
+            x1, y1, x2, y2, score = bbox
+            boxes.append([x1, y1, x2, y2, class_id, score])
+    
+    for class_id, items in enumerate(_im_summary.pred.cls_prob):
+        for cls_prob in items:                
+            probs.append(cls_prob)
+            
+    for class_id, items in enumerate(_im_summary.pred.pooled_feat):
+        for f in items:                
+            feats.append(f)
+            
+    assert len(boxes) == len(probs)
+    assert len(boxes) == len(feats)
+
+    bundles = list(zip(boxes, probs, feats))
+    bundles = sorted(bundles, key=lambda x: x[0][-1], reverse = True) # sort by confidence descendingly 
+    
+    boxes, probs, feats = zip(*bundles)
+    
+    return (list(boxes), list(probs), list(feats))
+
+
+def package_image_summary(_images_index, _gt, _feature_path): 
+    print("Packaging image summary ..")
+    for idx in range(len(_images_index)): 
+        curr_im_path = str(_images_index[idx]) + ".pkl"
+        im_summary = pickle.load(open(os.path.join(_feature_path, curr_im_path), 'rb'))
+        boxes, probs, feats = formalize_bbox(im_summary)
+        im_summary.pred.pooled_feat = feats
+        im_summary.pred.bbox_nms = boxes
+        im_summary.pred.cls_prob = probs
+        im_summary.gt = edict(_gt[idx])
+        pickle.dump(im_summary, open(os.path.join(_feature_path, curr_im_path), 'wb'))
+    print("Done")
+    
 
 
 def parse_args():
@@ -40,8 +90,7 @@ def parse_args():
   Parse input arguments
   """
   parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
-  parser.add_argument('--dataset', dest='dataset',
-                      help='training dataset',
+  parser.add_argument('--dataset', dest='dataset', help='training dataset',
                       default='pascal_voc', type=str)
   parser.add_argument('--cfg', dest='cfg_file',
                       help='optional config file',
@@ -131,7 +180,6 @@ if __name__ == '__main__':
   metaInfo.imdb_name = args.imdb_name
   metaInfo.imdb_classes = imdb.classes
   metaInfo.imdb_image_index = imdb.image_index
-  metaInfo.formatted = False
 
   meta_file = feature_folder + "meta.pkl"
   with open(meta_file, 'wb') as f:
@@ -403,14 +451,16 @@ if __name__ == '__main__':
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
-
-
-
   with open(det_file, 'wb') as f:
       pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
 
   print('Evaluating detections')
   imdb.evaluate_detections(all_boxes, output_dir)
+
+  feature_path = os.path.join('./data/features/%s/'%(args.imdb_name))
+  cache_path = os.path.join('./data/cache/%s_gt_roidb.pkl'%(args.imdb_name))
+  gt = pickle.load(gzip.open(os.path.join(cache_path), 'rb'),encoding='latin1')
+  package_image_summary(imdb.image_index, gt, feature_path) 
 
   end = time.time()
   print("test time: %0.4fs" % (end - start))
