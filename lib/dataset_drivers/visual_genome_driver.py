@@ -47,8 +47,8 @@ class visual_genome_driver():
         curr_gt = im_summary.gt
 
         im = visual_genome_driver._normalize_image(im_summary) # image in RGB with [0, 1] range
-        boxes = im_summary.pred.bbox_nms
-        _scale = im_summary.info.dim_scale[0][2]
+        boxes = im_summary.pred.boxes
+        _scale = im_summary.info.dim_scale[2]
 
         _k = min(_k, len(boxes)) # num predictions to show
         _k_gt = min(_k_gt, len(curr_gt.boxes)) # num gt to show
@@ -70,7 +70,7 @@ class visual_genome_driver():
         Output: regular image normalized to [0, 1]
         """
 
-        _im_data = _im_summary.info.im_data 
+        _im_data = _im_summary.info.data 
 
         _im_data = _im_data.squeeze()
         _im_data = np.swapaxes(_im_data, 0, 1)

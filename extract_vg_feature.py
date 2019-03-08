@@ -46,7 +46,7 @@ def formalize_bbox(_im_summary):
     probs = [] # prob distribution for each bounding box
     feats = [] # pooled features
     
-    for class_id, items in enumerate(_im_summary.pred.bbox_nms):
+    for class_id, items in enumerate(_im_summary.pred.boxes):
         for bbox in items:
             x1, y1, x2, y2, score = bbox
             boxes.append([x1, y1, x2, y2, class_id, score])
@@ -77,7 +77,7 @@ def package_image_summary(_images_index, _gt, _feature_path):
         im_summary = pickle.load(open(os.path.join(_feature_path, curr_im_path), 'rb'))
         boxes, probs, feats = formalize_bbox(im_summary)
         im_summary.pred.pooled_feat = feats
-        im_summary.pred.bbox_nms = boxes
+        im_summary.pred.boxes = boxes
         im_summary.pred.cls_prob = probs
         im_summary.gt = edict(_gt[idx])
         pickle.dump(im_summary, open(os.path.join(_feature_path, curr_im_path), 'wb'))
@@ -285,7 +285,7 @@ if __name__ == '__main__':
 
       ###### assume: order does not change
       image_summary.info.image_idx = imdb.image_index[i]
-      image_summary.info.im_data = vgg_extractor._detach2numpy(im_data)
+      image_summary.info.data = vgg_extractor._detach2numpy(im_data).squeeze()
 
       # phase 0 
       scores = cls_prob.data
@@ -438,14 +438,11 @@ if __name__ == '__main__':
             .format(i + 1, num_images, detect_time, nms_time))
 
       image_summary.pred.cls_prob = [all_probs[j][i] for j in range(imdb.num_classes)]
-      image_summary.pred.bbox_nms = [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
+      image_summary.pred.boxes= [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
       image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(imdb.num_classes)] # bboxes after nms
 
 
 
-
-
-      #image_summary.pred.scores_nms = vgg_extractor._detach2numpy(cls_scores) #### for all boxes? inspect
 
       feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"
       with open(feature_file, 'wb') as f:

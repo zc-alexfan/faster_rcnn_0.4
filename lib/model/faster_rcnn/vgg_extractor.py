@@ -41,7 +41,7 @@ class vgg_extractor(vgg16):
     image_summary.pred = edict()
     image_summary.info = edict()
 
-    image_summary.info.dim_scale = vgg_extractor._detach2numpy(im_info)
+    image_summary.info.dim_scale = vgg_extractor._detach2numpy(im_info).squeeze()
 
 
     # feed image data to base model to obtain base feature map
@@ -49,8 +49,7 @@ class vgg_extractor(vgg16):
 
     # feed base feature map tp RPN to obtain rois
     rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
-    image_summary.pred.base_feat = vgg_extractor._detach2numpy(base_feat)
-    image_summary.pred.rois = vgg_extractor._detach2numpy(rois)
+    image_summary.pred.base_feat = vgg_extractor._detach2numpy(base_feat).squeeze()
 
     # default values in 'test' mode
     rois_label = None
@@ -77,7 +76,6 @@ class vgg_extractor(vgg16):
     pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
 
     image_summary.pred.pooled_feat = vgg_extractor._detach2numpy(pooled_feat)
-    image_summary.info.formatted = False
 
     # feed pooled features to top model
     pooled_feat = self._head_to_tail(pooled_feat)

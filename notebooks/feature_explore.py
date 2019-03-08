@@ -9,93 +9,188 @@
 # %load_ext autoreload
 # %autoreaload 1  # 1 for the first call in %aimport
 # %aimport visualizer
-
 import torch
 assert torch.__version__ == '0.4.0'
 import sys
-sys.path.append('/home/alex/faster-rcnn.pytorch/lib/visualization')
-from visualizer import Visualizer
+sys.path.append('/home/alex/faster-rcnn.pytorch/lib/dataset_drivers')
+from visual_genome_driver import visual_genome_driver
 from easydict import EasyDict as edict
-datasplit = 'vg_alldata_minival'
 
 
 # In[2]:
 
 
-import pickle, os
+datasplit = 'vg_alldata_minival'
+driver = visual_genome_driver(datasplit)
 
+
+# # Driver Functions
 
 # In[3]:
 
 
-vis = Visualizer(datasplit)
-# curr_im_path = str(vis._images_index[0]) + ".pkl"
-# im_summary = pickle.load(open(os.path.join(vis._feature_path, curr_im_path), 'rb'))
-# boxes, probs, feats = vis.formalize_bbox(im_summary)
+driver.show_random_image(4, 3)
 
 
 # In[4]:
 
 
-vis.show_random_image(4, 3)
+num_gt = 5
+num_pred = 2
+driver.show_image(0, num_pred, num_gt)
 
 
 # In[5]:
 
 
-im = vis.get_image_by_idx(0)
+im_summary = driver.get_image_by_idx(0)
+image_id = im_summary.info.image_idx
+im_summary = driver.get_image_by_id(image_id)
+
+
+# In[6]:
+
+
+meta = driver.get_meta()
+
+
+# # Meta object
+
+# In[7]:
+
+
+meta.keys()
+
+
+# In[8]:
+
+
+meta.imdb_name
 
 
 # In[9]:
 
 
-meta = vis.get_meta()
+labels = meta.imdb_classes
+print(labels[:10])
 
 
-# In[12]:
+# In[10]:
 
 
-meta.imdb_classes[im.pred.bbox_nms[0][-2]]
+image_index = meta.imdb_image_index
+print(image_index[:10])
 
 
-# # Features of image
+# # image object
 
-# Show a few more examples: 
-
-# In[7]:
+# In[11]:
 
 
-num_pred = 6
-num_gt = 0
-vis.show_random_image(num_pred, num_gt)
-vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
-# vis.show_random_image(num_pred, num_gt)
+im_summary.keys()
 
 
-# ## What is 300?
+# ## im_summary.info
 
-# In[ ]:
-
-
+# In[13]:
 
 
+im_summary.info.keys()
 
-# Pooled feature of each proposal region. It has dimension: `proposal x depth x width x height`. We are going to use this as features to learn Graph RCNN. 
+
+# In[20]:
+
+
+im_summary.info.data.shape # pixels
+
+
+# In[30]:
+
+
+print(im_summary.info.dim_scale)
+print(im_summary.gt.height, im_summary.gt.width)
+print(im_summary.info.dim_scale[0]/im_summary.gt.height)
+
+
+# ## im_summary.gt
+
+# In[14]:
+
+
+im_summary.gt.keys()
+
+
+# In[15]:
+
+
+im_summary.gt.boxes[:3] # (x1, y1, x2, y2)
+
+
+# In[16]:
+
+
+im_summary.gt.gt_classes[:3] # (x1, y1, x2, y2)
+
+
+# ## im_summary.pred
+
+# In[31]:
+
+
+im_summary.pred.keys()
+
+
+# In[32]:
+
+
+im_summary.pred.base_feat.shape
+
+
+# In[35]:
+
+
+len(im_summary.pred.pooled_feat)
+
+
+# In[36]:
+
+
+im_summary.pred.pooled_feat[0].shape
+
+
+# In[37]:
+
+
+len(im_summary.pred.cls_prob)
+
+
+# In[39]:
+
+
+im_summary.pred.cls_prob[0].shape
+
+
+# In[40]:
+
+
+len(im_summary.pred.boxes)
+
+
+# In[41]:
+
+
+im_summary.pred.boxes[0] # x1, y1, x2, y2, class_id, confidence
+
+
+# In[43]:
+
+
+meta.imdb_classes[im_summary.pred.boxes[0][-2]]
+
 
 # # Test Zone
 
-# In[8]:
+# In[ ]:
 
 
 get_ipython().system('jupyter nbconvert --to script feature_explore.ipynb')
