@@ -17,18 +17,14 @@ import pdb
 from tqdm import tqdm
 import torch
 from torch.autograd import Variable
-import torch.optim as optim
 import pickle
-from roi_data_layer.roidb import combined_roidb
-from roi_data_layer.roibatchLoader import roibatchLoader
-from model.utils.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
+from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.rpn.bbox_transform import clip_boxes
 from model.nms.nms_wrapper import nms
 from model.rpn.bbox_transform import bbox_transform_inv
 from model.faster_rcnn.generic_extractor import generic_extractor
 from easydict import EasyDict as edict
 
-import gzip
 import glob
 from scipy.misc import imread
 import cv2
@@ -56,11 +52,14 @@ def prep_im_for_blob(im, pixel_means, target_size, max_size):
 
 
 class roibatchLoader(Dataset):
-  def __init__(self, image_urls):
+  def __init__(self, image_path, image_urls, image_extension):
     self._image_urls = image_urls
+    self._image_path = image_path
+    self._image_extension = image_extension
 
   def __getitem__(self, index):
-    im = imread(self._image_urls[index])
+    im = imread(os.path.join(\
+            self._image_path, self._image_urls[index] + self._image_extension))
     im = im[:, :, ::-1] # rgb -> bgr
     target_size = 600
     im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
@@ -190,8 +189,12 @@ if __name__ == '__main__':
 
   num_classes = len(class_labels)
 
-  image_paths = glob.glob("/home/alex/faster-rcnn.pytorch/data/flickr_mini/*.jpg")
-  dataset = roibatchLoader(image_paths)
+  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr_mini/') 
+  image_extension = ".jpg"
+  image_index = glob.glob(os.path.join(image_path, "*" + image_extension))
+  image_index = [os.path.basename(x)[:-len(image_extension)] for x in image_index]
+
+  dataset = roibatchLoader(image_path, image_index, image_extension)
   num_images = len(dataset)
 
   metaInfo = edict()
@@ -209,7 +212,6 @@ if __name__ == '__main__':
   assert args.dataset == 'vg'
   assert args.net == 'vgg16'
 
-  args.imdb_name = "vg_alldata_smalltrain"
 
   args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
@@ -228,21 +230,11 @@ if __name__ == '__main__':
     os.makedirs(feature_folder)
 
   cfg.TRAIN.USE_FLIPPED = False
-  imdb, roidb, ratio_list, ratio_index = combined_roidb(args.imdb_name, False)
-  imdb.competition_mode(on=True)
-
-  metaInfo.imdb_name = args.imdb_name
-  metaInfo.imdb_image_index = imdb.image_index
+  metaInfo.imdb_image_index = image_index
 
   meta_file = feature_folder + "meta.pkl"
   with open(meta_file, 'wb') as f:
       pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
-
-
-   
-
-
-  print('{:d} roidb entries'.format(len(roidb)))
 
 
   input_dir = args.load_dir + "/" + args.net + "/" + args.dataset
@@ -326,7 +318,7 @@ if __name__ == '__main__':
       rois_label, image_summary = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
       ###### assume: order does not change
-      image_summary.info.image_idx = imdb.image_index[i]
+      image_summary.info.image_idx = image_index[i]
       image_summary.info.data = generic_extractor._detach2numpy(im_data).squeeze()
 
       # phase 0 
@@ -421,11 +413,11 @@ if __name__ == '__main__':
 
 
 
-      feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"
+      feature_file = feature_folder + image_summary.info.image_idx + ".pkl"
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
 
   feature_path = os.path.join('./data/features_30k/')
-  package_image_summary(imdb.image_index, feature_path) 
+  package_image_summary(image_index, feature_path) 
 

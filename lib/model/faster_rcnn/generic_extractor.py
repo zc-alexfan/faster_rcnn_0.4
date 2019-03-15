@@ -33,7 +33,7 @@ class generic_extractor(vgg16):
     gt_boxes = gt_boxes.data
     num_boxes = num_boxes.data
     assert batch_size == 1, "Expecting batch size = 1"
-    #assert cfg.POOLING_MODE == 'align', "Only consided align when building this. Might need to modify the code a bit"
+    assert cfg.POOLING_MODE == 'align', "Only consided align when building this. Might need to modify the code a bit"
 
 
 
