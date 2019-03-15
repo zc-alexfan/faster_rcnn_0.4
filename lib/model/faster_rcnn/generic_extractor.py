@@ -38,7 +38,6 @@ class generic_extractor(vgg16):
 
 
     image_summary = edict()
-    image_summary.gt = edict()
     image_summary.pred = edict()
     image_summary.info = edict()
 

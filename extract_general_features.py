@@ -16,7 +16,6 @@ import pprint
 import pdb
 from tqdm import tqdm
 import torch
-from torch.autograd import Variable
 import pickle
 from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.rpn.bbox_transform import clip_boxes
@@ -50,7 +49,6 @@ def prep_im_for_blob(im, pixel_means, target_size, max_size):
 
     return im, im_scale
 
-
 class roibatchLoader(Dataset):
   def __init__(self, image_path, image_urls, image_extension):
     self._image_urls = image_urls
@@ -67,7 +65,6 @@ class roibatchLoader(Dataset):
 
     data = torch.from_numpy(im)
     data_height, data_width = data.size(0), data.size(1)
-    #data = data.permute(2, 1, 0).contiguous().view(3, data_height, data_width)
     data = data.permute(2, 0, 1)
 
     return (data, im_scale)
@@ -93,12 +90,11 @@ def formalize_bbox(_im_summary):
     for class_id, items in enumerate(_im_summary.pred.cls_prob):
         for cls_prob in items:                
             probs.append(cls_prob)
-            
+    assert len(boxes) == len(probs)
+
     for class_id, items in enumerate(_im_summary.pred.pooled_feat):
         for f in items:                
             feats.append(f)
-            
-    assert len(boxes) == len(probs)
     assert len(boxes) == len(feats)
 
     bundles = list(zip(boxes, probs, feats))
@@ -115,10 +111,14 @@ def package_image_summary(_images_index, _feature_path):
         curr_im_path = str(_images_index[idx]) + ".pkl"
         im_summary = pickle.load(open(os.path.join(_feature_path, curr_im_path), 'rb'))
         boxes, probs, feats = formalize_bbox(im_summary)
-        im_summary.pred.pooled_feat = feats
-        im_summary.pred.boxes = boxes
-        im_summary.pred.cls_prob = probs
-        pickle.dump(im_summary, open(os.path.join(_feature_path, curr_im_path), 'wb'))
+
+        im_summary_out = {}
+        im_summary_out['boxes'] = boxes
+        im_summary_out['scale'] = im_summary.info.dim_scale[2]
+        #im_summary.pred.pooled_feat = feats
+        #im_summary.pred.boxes = boxes
+        #im_summary.pred.cls_prob = probs
+        pickle.dump(im_summary_out, open(os.path.join(_feature_path, curr_im_path), 'wb'))
     print("Done")
     
 
@@ -192,12 +192,15 @@ if __name__ == '__main__':
 
   num_classes = len(class_labels)
 
-  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr_mini/') 
+  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr30k/') 
   image_extension = ".jpg"
   image_index = glob.glob(os.path.join(image_path, "*" + image_extension))
   image_index = [os.path.basename(x)[:-len(image_extension)] for x in image_index]
 
-  feature_path = os.path.join('./data/features_30k/')
+  feature_path = os.path.join(image_path, 'features')
+
+  if not os.path.exists(feature_path):
+    os.makedirs(feature_path)
 
   dataset = roibatchLoader(image_path, image_index, image_extension)
   num_images = len(dataset)
@@ -227,14 +230,11 @@ if __name__ == '__main__':
   print('Using config:')
   pprint.pprint(cfg)
 
-  feature_folder = './data/features_30k/' 
-  if not os.path.exists(feature_folder):
-    os.makedirs(feature_folder)
 
   cfg.TRAIN.USE_FLIPPED = False
   metaInfo.imdb_image_index = image_index
 
-  meta_file = feature_folder + "meta.pkl"
+  meta_file = os.path.join(feature_path, "meta.pkl")
   with open(meta_file, 'wb') as f:
       pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
 
@@ -375,11 +375,10 @@ if __name__ == '__main__':
           torch.cuda.empty_cache()
 
       image_summary.pred.cls_prob = [all_probs_class[j] for j in range(num_classes)]
-      image_summary.pred.boxes= [all_boxes_class[j] for j in range(num_classes)] # bboxes after nms
-      image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] # bboxes after nms
+      image_summary.pred.boxes= [all_boxes_class[j] for j in range(num_classes)] 
+      image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] 
 
-
-      feature_file = feature_folder + image_summary.info.image_idx + ".pkl"
+      feature_file = os.path.join(feature_path, image_summary.info.image_idx+".pkl")
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
