@@ -173,6 +173,8 @@ def parse_args():
   return args
 
 if __name__ == '__main__':
+  device = torch.device('cuda:0')
+
   class_labels = ['__background__', 'bush', 'kite', 'laptop', 'bear', 'paper', 'shoe', 'chair', 'ground', 'flowers', 'tire',
      'cup', 'sky', 'bench', 'window', 'bike', 'board', 'hat', 'plate', 'woman', 'handle', 'food', 'trees', 'wave',
      'giraffe', 'background', 'foot', 'shadow', 'clouds', 'button', 'shelf', 'bag', 'sand', 'nose', 'rock', 'sidewalk',
@@ -187,6 +189,7 @@ if __name__ == '__main__':
      'person', 'part', 'truck', 'bottle', 'wing']
   assert len(class_labels) == 151
 
+
   num_classes = len(class_labels)
 
   image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr_mini/') 
@@ -194,8 +197,11 @@ if __name__ == '__main__':
   image_index = glob.glob(os.path.join(image_path, "*" + image_extension))
   image_index = [os.path.basename(x)[:-len(image_extension)] for x in image_index]
 
+  feature_path = os.path.join('./data/features_30k/')
+
   dataset = roibatchLoader(image_path, image_index, image_extension)
   num_images = len(dataset)
+  max_per_image = 100
 
   metaInfo = edict()
   
@@ -205,13 +211,9 @@ if __name__ == '__main__':
   print('Called with args:')
   print(args)
 
-  if torch.cuda.is_available() and not args.cuda:
-    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
-
   np.random.seed(cfg.RNG_SEED)
   assert args.dataset == 'vg'
   assert args.net == 'vgg16'
-
 
   args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
@@ -256,44 +258,25 @@ if __name__ == '__main__':
 
 
   # initilize the tensor holder here.
-  im_data = torch.FloatTensor(1)
-  im_info = torch.FloatTensor(1)
-  num_boxes = torch.LongTensor(1)
-  gt_boxes = torch.FloatTensor(1)
-
-  # ship to cuda
-  if args.cuda:
-    im_data = im_data.cuda()
-    im_info = im_info.cuda()
-    num_boxes = num_boxes.cuda()
-    gt_boxes = gt_boxes.cuda()
-
-  # make variable
-  im_data = Variable(im_data)
-  im_info = Variable(im_info)
-  num_boxes = Variable(num_boxes)
-  gt_boxes = Variable(gt_boxes)
+  im_data = torch.FloatTensor(1).to(device)
+  gt_boxes = torch.FloatTensor([[ 1.,  1.,  1.,  1.,  1.]]).to(device)
+  num_boxes = torch.LongTensor([0]).to(device)
 
   if args.cuda:
     cfg.CUDA = True
 
-  if args.cuda:
-    fasterRCNN.cuda()
 
-  max_per_image = 100
+  fasterRCNN.to(device)
+  fasterRCNN.eval()
+
 
   thresh = 0.0 # default value when vis=False
 
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
-                            shuffle=False, num_workers=0,
-                            pin_memory=True)
-
+                            shuffle=False, num_workers=0, pin_memory=True)
   data_iter = iter(dataloader)
 
-
-  fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
-  #all_summary = []
   for i in tqdm(range(num_images)):
       all_feat_class = [[] for _ in xrange(num_classes)]
       all_probs_class = [[] for _ in xrange(num_classes)]
@@ -302,15 +285,8 @@ if __name__ == '__main__':
       data = next(data_iter)
       scale = data[1].item()
 
-
       im_data.data.resize_(data[0].size()).copy_(data[0])
-      #im_info.data.resize_(data[1].size()).copy_(data[1])
-      #gt_boxes.data.resize_(data[2].size()).copy_(data[2])
-      #num_boxes.data.resize_(data[3].size()).copy_(data[3])
-
-      im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).cuda()
-      gt_boxes = torch.FloatTensor([[ 1.,  1.,  1.,  1.,  1.]]).cuda()
-      num_boxes = torch.LongTensor([0]).cuda()
+      im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(device)
 
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
@@ -324,10 +300,7 @@ if __name__ == '__main__':
       # phase 0 
       scores = cls_prob.data
       boxes = rois.data[:, :, 1:5] # (x1, y1, x2, y2)
-      # bbox_pred is used to compute deltas 
-      
 
-      #import pdb; pdb.set_trace() 
       # Apply bounding-box regression deltas
       box_deltas = bbox_pred.data
 
@@ -390,18 +363,12 @@ if __name__ == '__main__':
           # flatten scores for all boxes of this image
           image_scores = np.hstack([all_boxes_class[j][:, -1] for j in xrange(1, num_classes)])
           if len(image_scores) > max_per_image:
-              # threshold to obtain max_per_image
               image_thresh = np.sort(image_scores)[-max_per_image]
-
-              # for each class, extract boxes > threshold 
               for j in xrange(1, num_classes):
                   keep = np.where(all_boxes_class[j][:, -1] >= image_thresh)[0]
                   all_boxes_class[j] = all_boxes_class[j][keep, :]
                   all_probs_class[j] = all_probs_class[j][keep, :]
                   all_feat_class[j] = all_feat_class[j][keep, :]
-
-
-      # Done nms on bboxes
 
       if(i % 1000 == 0):
           print("Cleaning CUDA cache")
@@ -412,12 +379,9 @@ if __name__ == '__main__':
       image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] # bboxes after nms
 
 
-
       feature_file = feature_folder + image_summary.info.image_idx + ".pkl"
       with open(feature_file, 'wb') as f:
           pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
 
-
-  feature_path = os.path.join('./data/features_30k/')
   package_image_summary(image_index, feature_path) 
 
