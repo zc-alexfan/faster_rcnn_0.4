@@ -148,7 +148,7 @@ class vg(imdb):
           if self._image_set == "minitrain":
             metadata = metadata[:1000]
           elif self._image_set == "smalltrain":
-            metadata = metadata[:20000]
+            metadata = metadata[:5000]
           elif self._image_set == "minival":
             metadata = metadata[:100]
           elif self._image_set == "smallval":
@@ -213,7 +213,8 @@ class vg(imdb):
         objs = tree.findall('object')
         num_objs = len(objs)
 
-        boxes = np.zeros((num_objs, 4), dtype=np.uint16)
+        boxes = np.zeros((num_objs, 5), dtype=np.uint32)
+
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         # Max of 16 attributes are observed in the data
         gt_attributes = np.zeros((num_objs, 16), dtype=np.int32)
@@ -243,6 +244,7 @@ class vg(imdb):
                     y2 = width-1
                 cls = self._class_to_ind[obj_name]
                 obj_dict[obj.find('object_id').text] = ix
+                obj_id = int(obj.find('object_id').text)
                 atts = obj.findall('attribute')
                 n = 0
                 for att in atts:
@@ -252,7 +254,7 @@ class vg(imdb):
                         n += 1
                     if n >= 16:
                         break
-                boxes[ix, :] = [x1, y1, x2, y2]
+                boxes[ix, :] = [x1, y1, x2, y2, obj_id ]
                 gt_classes[ix] = cls
                 overlaps[ix, cls] = 1.0
                 seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
@@ -274,23 +276,23 @@ class vg(imdb):
                 if pred in self._relation_to_ind:
                     try:
                         triple = []
-                        triple.append(obj_dict[rel.find('subject_id').text])
+                        triple.append(int(rel.find('subject_id').text))
                         triple.append(self._relation_to_ind[pred])
-                        triple.append(obj_dict[rel.find('object_id').text])
+                        triple.append(int(rel.find('object_id').text))
                         gt_relations.add(tuple(triple))
                     except:
                         pass # Object not in dictionary
         gt_relations = np.array(list(gt_relations), dtype=np.int32)
 
-        return {'boxes' : boxes,
+        return { 'boxes' : boxes,
+                'xml_index': index,
                 'gt_classes': gt_classes,
                 'gt_attributes' : gt_attributes,
                 'gt_relations' : gt_relations,
                 'gt_overlaps' : overlaps,
+                'flipped': False,
                 'width' : width,
-                'height': height,
-                'flipped' : False,
-                'seg_areas' : seg_areas}
+                'height': height}
 
     def evaluate_detections(self, all_boxes, output_dir):
         self._write_voc_results_file(self.classes, all_boxes, output_dir)

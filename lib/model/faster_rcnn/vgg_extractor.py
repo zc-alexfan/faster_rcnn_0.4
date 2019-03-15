@@ -36,6 +36,7 @@ class vgg_extractor(vgg16):
     assert cfg.POOLING_MODE == 'align', "Only consided align when building this. Might need to modify the code a bit"
 
 
+
     image_summary = edict()
     image_summary.gt = edict()
     image_summary.pred = edict()
