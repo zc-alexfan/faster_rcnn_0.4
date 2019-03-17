@@ -17,7 +17,7 @@ import pdb
 from tqdm import tqdm
 import torch
 import pickle
-from model.utils.config import cfg, cfg_from_file, cfg_from_list
+from model.utils.config import cfg, cfg_from_file, cfg_from_list 
 from model.rpn.bbox_transform import clip_boxes
 from model.nms.nms_wrapper import nms
 from model.rpn.bbox_transform import bbox_transform_inv
@@ -172,6 +172,16 @@ def parse_args():
   args = parser.parse_args()
   return args
 
+def filter_small_box(boxes, min_area): 
+  boxes_index = []
+  for i, box in enumerate(boxes): 
+    x1, y1, x2, y2, _ = box
+    area = (x2-x1)*(y2-y1)
+    if(area >= min_area): 
+      boxes_index.append(i)
+  return boxes_index
+
+
 if __name__ == '__main__':
   device = torch.device('cuda:0')
 
@@ -192,7 +202,7 @@ if __name__ == '__main__':
 
   num_classes = len(class_labels)
 
-  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr30k/') 
+  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr_mini/') 
   image_extension = ".jpg"
   image_index = glob.glob(os.path.join(image_path, "*" + image_extension))
   image_index = [os.path.basename(x)[:-len(image_extension)] for x in image_index]
@@ -355,6 +365,13 @@ if __name__ == '__main__':
             all_probs_class[j] = empty_array
             all_feat_class[j] = empty_array
       
+      min_area = 2000
+      for j in xrange(1, num_classes):
+          filter_index = filter_small_box(all_boxes_class[j], min_area)
+          all_boxes_class[j] = all_boxes_class[j][filter_index]
+          all_probs_class[j] = all_probs_class[j][filter_index]
+          all_feat_class[j] = all_feat_class[j][filter_index]
+
       # Limit to max_per_image detections *over all classes*
       # phase 3
       curr_boxes = []

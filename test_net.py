@@ -96,6 +96,16 @@ lr = cfg.TRAIN.LEARNING_RATE
 momentum = cfg.TRAIN.MOMENTUM
 weight_decay = cfg.TRAIN.WEIGHT_DECAY
 
+def filter_small_box(boxes, min_area): 
+  boxes_index = []
+  for i, box in enumerate(boxes): 
+    x1, y1, x2, y2, _ = box
+    area = (x2-x1)*(y2-y1)
+    if(area >= min_area): 
+      boxes_index.append(i)
+  return boxes_index
+
+
 if __name__ == '__main__':
 
   args = parse_args()
@@ -296,6 +306,11 @@ if __name__ == '__main__':
             if vis:
               im2show = vis_detections(im2show, imdb.classes[j], cls_dets.cpu().numpy(), 0.3)
             all_boxes[j][i] = cls_dets.cpu().numpy()
+
+            min_area = 2000
+
+            filter_index = filter_small_box(all_boxes[j][i], min_area)
+            all_boxes[j][i] = all_boxes[j][i][filter_index]
           else:
             all_boxes[j][i] = empty_array
 
