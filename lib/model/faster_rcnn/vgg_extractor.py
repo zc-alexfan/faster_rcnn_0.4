@@ -27,7 +27,7 @@ class vgg_extractor(vgg16):
   def _detach2numpy(_tensor):
       return _tensor.cpu().detach().numpy()
 
-  def forward(self, im_data, im_info, gt_boxes, num_boxes):
+  def forward(self, im_data, im_info, gt_boxes, num_boxes, gt):
     batch_size = im_data.size(0)
     im_info = im_info.data
     gt_boxes = gt_boxes.data
@@ -50,6 +50,19 @@ class vgg_extractor(vgg16):
 
     # feed base feature map tp RPN to obtain rois
     rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
+
+    USE_GT = True
+    if USE_GT: 
+        boxes = gt['boxes'][gt['boxes'][:, 4] != 0, :]
+        boxes = boxes[:, :4]
+        scale = im_info[0][2].item()
+        boxes = scale*boxes
+
+        rois = torch.zeros((1, boxes.shape[0], 5))
+        rois[0, :, 1:] = torch.FloatTensor(boxes)
+        rois = rois.cuda()
+
+
     image_summary.pred.base_feat = vgg_extractor._detach2numpy(base_feat).squeeze()
 
     # default values in 'test' mode

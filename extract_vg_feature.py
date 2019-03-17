@@ -84,6 +84,16 @@ def package_image_summary(_images_index, _gt, _feature_path):
     print("Done")
     
 
+def filter_small_box(boxes, min_area): 
+  boxes_index = []
+  for i, box in enumerate(boxes): 
+    x1, y1, x2, y2, _ = box
+    area = (x2-x1)*(y2-y1)
+    if(area >= min_area): 
+      boxes_index.append(i)
+  return boxes_index
+
+
 
 def parse_args():
   """
@@ -153,8 +163,8 @@ if __name__ == '__main__':
   assert args.net == 'vgg16'
 
   args.imdb_name = "vg_alldata_singleton"
-  args.imdb_name = "vg_alldata_smalltrain"
   args.imdb_name = "vg_alldata_minitrain"
+  args.imdb_name = "vg_alldata_smalltrain"
   args.imdb_name = "vg_alldata_minival"
 
   args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
@@ -184,10 +194,6 @@ if __name__ == '__main__':
   meta_file = feature_folder + "meta.pkl"
   with open(meta_file, 'wb') as f:
       pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
-
-
-   
-
 
   print('{:d} roidb entries'.format(len(roidb)))
 
@@ -268,6 +274,8 @@ if __name__ == '__main__':
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
   #all_summary = []
+  cache_path = os.path.join('./data/cache/%s_gt_roidb.pkl'%(args.imdb_name))
+  gt = pickle.load(gzip.open(os.path.join(cache_path), 'rb'),encoding='latin1')
   for i in tqdm(range(num_images)):
       all_feat_class = [[] for _ in xrange(imdb.num_classes)]
 
@@ -277,11 +285,12 @@ if __name__ == '__main__':
       gt_boxes.data.resize_(data[2].size()).copy_(data[2])
       num_boxes.data.resize_(data[3].size()).copy_(data[3])
 
+      
       det_tic = time.time()
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
       RCNN_loss_cls, RCNN_loss_bbox, \
-      rois_label, image_summary = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+      rois_label, image_summary = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, gt[i])
 
       ###### assume: order does not change
       image_summary.info.image_idx = imdb.image_index[i]
@@ -337,11 +346,11 @@ if __name__ == '__main__':
       # phase 1
 
       # each proposal has a prob distri.
-      scores = scores.squeeze() # torch.Size([300, 151])
+      scores = scores.view(-1, imdb.num_classes) # torch.Size([300, 151])
       pooled_feat_backup = image_summary.pred.pooled_feat
 
       # each proposal has 604 bboxes, one box for each class
-      pred_boxes = pred_boxes.squeeze() # torch.Size([300, 604]), 604=4*151
+      pred_boxes = pred_boxes.view(-1, 4*imdb.num_classes) # torch.Size([300, 604]), 604=4*151
 
 
       detect_time = time.time() - det_tic
@@ -409,6 +418,7 @@ if __name__ == '__main__':
             all_probs[j][i] = empty_array
             all_feat_class[j] = empty_array
       
+
       # Limit to max_per_image detections *over all classes*
       # phase 3
       curr_boxes = []
@@ -455,7 +465,6 @@ if __name__ == '__main__':
   imdb.evaluate_detections(all_boxes, output_dir)
 
   feature_path = os.path.join('./data/features/%s/'%(args.imdb_name))
-  cache_path = os.path.join('./data/cache/%s_gt_roidb.pkl'%(args.imdb_name))
   gt = pickle.load(gzip.open(os.path.join(cache_path), 'rb'),encoding='latin1')
   package_image_summary(imdb.image_index, gt, feature_path) 
 
