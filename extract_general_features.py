@@ -105,21 +105,14 @@ def formalize_bbox(_im_summary):
     return (list(boxes), list(probs), list(feats))
 
 
-def package_image_summary(_images_index, _feature_path): 
-    print("Packaging image summary ..")
-    for idx in range(len(_images_index)): 
-        curr_im_path = str(_images_index[idx]) + ".pkl"
-        im_summary = pickle.load(open(os.path.join(_feature_path, curr_im_path), 'rb'))
-        boxes, probs, feats = formalize_bbox(im_summary)
+def package_image_summary(im_summary, _feature_path): 
+    boxes, probs, feats = formalize_bbox(im_summary)
 
-        im_summary_out = {}
-        im_summary_out['boxes'] = boxes
-        im_summary_out['scale'] = im_summary.info.dim_scale[2]
-        #im_summary.pred.pooled_feat = feats
-        #im_summary.pred.boxes = boxes
-        #im_summary.pred.cls_prob = probs
-        pickle.dump(im_summary_out, open(os.path.join(_feature_path, curr_im_path), 'wb'))
-    print("Done")
+    im_summary_out = {}
+    im_summary_out['boxes'] = boxes
+    im_summary_out['scale'] = im_summary.info.dim_scale[2]
+    curr_im_path = im_summary.info.image_idx + ".pkl"
+    pickle.dump(im_summary_out, open(os.path.join(_feature_path, curr_im_path), 'wb'))
     
 
 
@@ -202,7 +195,7 @@ if __name__ == '__main__':
 
   num_classes = len(class_labels)
 
-  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr_mini/') 
+  image_path = os.path.join('/home/alex/faster-rcnn.pytorch/data/flickr30k_alex/') 
   image_extension = ".jpg"
   image_index = glob.glob(os.path.join(image_path, "*" + image_extension))
   image_index = [os.path.basename(x)[:-len(image_extension)] for x in image_index]
@@ -396,8 +389,6 @@ if __name__ == '__main__':
       image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] 
 
       feature_file = os.path.join(feature_path, image_summary.info.image_idx+".pkl")
-      with open(feature_file, 'wb') as f:
-          pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
+      package_image_summary(image_summary, feature_path) 
 
-  package_image_summary(image_index, feature_path) 
 

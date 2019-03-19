@@ -70,20 +70,6 @@ def formalize_bbox(_im_summary):
     return (list(boxes), list(probs), list(feats))
 
 
-def package_image_summary(_images_index, _gt, _feature_path): 
-    print("Packaging image summary ..")
-    for idx in range(len(_images_index)): 
-        curr_im_path = str(_images_index[idx]) + ".pkl"
-        im_summary = pickle.load(open(os.path.join(_feature_path, curr_im_path), 'rb'))
-        boxes, probs, feats = formalize_bbox(im_summary)
-        im_summary.pred.pooled_feat = feats
-        im_summary.pred.boxes = boxes
-        im_summary.pred.cls_prob = probs
-        im_summary.gt = edict(_gt[idx])
-        pickle.dump(im_summary, open(os.path.join(_feature_path, curr_im_path), 'wb'))
-    print("Done")
-    
-
 def filter_small_box(boxes, min_area): 
   boxes_index = []
   for i, box in enumerate(boxes): 
@@ -163,9 +149,10 @@ if __name__ == '__main__':
   assert args.net == 'vgg16'
 
   args.imdb_name = "vg_alldata_singleton"
+  args.imdb_name = "vg_alldata_train"
+  args.imdb_name = "vg_alldata_minival"
   args.imdb_name = "vg_alldata_minitrain"
   args.imdb_name = "vg_alldata_smalltrain"
-  args.imdb_name = "vg_alldata_minival"
 
   args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
@@ -276,7 +263,7 @@ if __name__ == '__main__':
   #all_summary = []
   cache_path = os.path.join('./data/cache/%s_gt_roidb.pkl'%(args.imdb_name))
   gt = pickle.load(gzip.open(os.path.join(cache_path), 'rb'),encoding='latin1')
-  for i in tqdm(range(num_images)):
+  for i in tqdm(range(num_images), smoothing=0.1):
       all_feat_class = [[] for _ in xrange(imdb.num_classes)]
 
       data = next(data_iter)
@@ -451,22 +438,37 @@ if __name__ == '__main__':
       image_summary.pred.boxes= [all_boxes[j][i] for j in range(imdb.num_classes)] # bboxes after nms
       image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(imdb.num_classes)] # bboxes after nms
 
+      boxes, probs, feats = formalize_bbox(image_summary)
+      image_summary.pred.pooled_feat = feats
+      image_summary.pred.pred_boxes = boxes
+      image_summary.pred.pop('boxes', None) 
+      image_summary.pred.cls_prob = probs
+      image_summary.gt = edict(gt[i])
 
+      curr_im_path = feature_folder + str(image_summary.info.image_idx) + "."
+      for k in image_summary.gt.keys():
+          if image_summary.gt[k] is not None: 
+              if 'gt' not in k:
+                  pickle.dump(image_summary.gt[k], open(curr_im_path+ 'gt_' + k, 'wb'))
+              else: 
+                  pickle.dump(image_summary.gt[k], open(curr_im_path+k, 'wb'))
 
+      for k in image_summary.pred.keys():
+          if image_summary.pred[k] is not None: 
+              if 'pred' not in k:
+                  pickle.dump(image_summary.pred[k], open(curr_im_path+ 'pred_' + k, 'wb'))
+              else: 
+                  pickle.dump(image_summary.pred[k], open(curr_im_path+ k, 'wb'))
 
-      feature_file = feature_folder + str(image_summary.info.image_idx) + ".pkl"
-      with open(feature_file, 'wb') as f:
-          pickle.dump(image_summary, f, pickle.HIGHEST_PROTOCOL)
+      for k in image_summary.info.keys():
+          if image_summary.info[k] is not None: 
+              pickle.dump(image_summary.info[k], open(curr_im_path+ 'info_' + k, 'wb'))  
 
   with open(det_file, 'wb') as f:
       pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
 
   print('Evaluating detections')
   imdb.evaluate_detections(all_boxes, output_dir)
-
-  feature_path = os.path.join('./data/features/%s/'%(args.imdb_name))
-  gt = pickle.load(gzip.open(os.path.join(cache_path), 'rb'),encoding='latin1')
-  package_image_summary(imdb.image_index, gt, feature_path) 
 
   end = time.time()
   print("test time: %0.4fs" % (end - start))
