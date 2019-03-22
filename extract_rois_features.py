@@ -21,7 +21,7 @@ from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.rpn.bbox_transform import clip_boxes
 from model.nms.nms_wrapper import nms
 from model.rpn.bbox_transform import bbox_transform_inv
-from model.faster_rcnn.generic_extractor import generic_extractor
+from model.faster_rcnn.rois_extractor import rois_extractor
 from easydict import EasyDict as edict
 
 import glob
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
 
   # initilize the network here.
-  fasterRCNN = generic_extractor(class_labels, pretrained=False, class_agnostic=args.class_agnostic)
+  fasterRCNN = rois_extractor(class_labels, pretrained=False, class_agnostic=args.class_agnostic)
   fasterRCNN.create_architecture()
 
   print("load checkpoint %s" % (load_name))
@@ -294,14 +294,11 @@ if __name__ == '__main__':
         im_data.data.resize_(data[0].size()).copy_(data[0])
         im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(device)
 
-        rois, cls_prob, bbox_pred, \
-        rpn_loss_cls, rpn_loss_box, \
-        RCNN_loss_cls, RCNN_loss_bbox, \
-        rois_label, image_summary = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+        rois, cls_prob, bbox_pred, image_summary = fasterRCNN(im_data, im_info)
 
         ###### assume: order does not change
         image_summary.info.image_idx = image_index[i]
-        image_summary.info.data = generic_extractor._detach2numpy(im_data).squeeze()
+        image_summary.info.data = rois_extractor._detach2numpy(im_data).squeeze()
 
         # phase 0 
         scores = cls_prob.data
