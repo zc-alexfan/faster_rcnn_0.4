@@ -149,10 +149,12 @@ if __name__ == '__main__':
   assert args.net == 'vgg16'
 
   args.imdb_name = "vg_alldata_singleton"
-  args.imdb_name = "vg_alldata_train"
-  args.imdb_name = "vg_alldata_minival"
   args.imdb_name = "vg_alldata_minitrain"
+  args.imdb_name = "vg_alldata_train"
+  args.imdb_name = "vg_alldata_bigtrain"
   args.imdb_name = "vg_alldata_smalltrain"
+  args.imdb_name = "vg_alldata_minival"
+  args.imdb_name = "vg_alldata_smallval"
 
   args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
@@ -177,9 +179,11 @@ if __name__ == '__main__':
   metaInfo.imdb_name = args.imdb_name
   metaInfo.imdb_classes = imdb.classes
   metaInfo.imdb_image_index = imdb.image_index
+  metaInfo.imdb_relations = imdb._relations
 
   meta_file = feature_folder + "meta.pkl"
   with open(meta_file, 'wb') as f:
+      print("Dumping meta")
       pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
 
   print('{:d} roidb entries'.format(len(roidb)))
@@ -260,7 +264,6 @@ if __name__ == '__main__':
 
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
-  #all_summary = []
   cache_path = os.path.join('./data/cache/%s_gt_roidb.pkl'%(args.imdb_name))
   gt = pickle.load(gzip.open(os.path.join(cache_path), 'rb'),encoding='latin1')
   for i in tqdm(range(num_images), smoothing=0.1):
@@ -444,6 +447,13 @@ if __name__ == '__main__':
       image_summary.pred.pop('boxes', None) 
       image_summary.pred.cls_prob = probs
       image_summary.gt = edict(gt[i])
+
+      # remove following
+      image_summary.pred.pooled_feat = None
+      image_summary.pred.base_feat = None
+      #image_summary.info.data = None
+
+
 
       curr_im_path = feature_folder + str(image_summary.info.image_idx) + "."
       for k in image_summary.gt.keys():

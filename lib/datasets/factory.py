@@ -53,7 +53,7 @@ for year in ['2007']:
 
 # VG
 for version in ['alldata']:
-    for split in ['train', 'minitrain', 'minival', 'smalltrain', 'smallval', 'val', 'singleton']:
+    for split in ['train', 'minitrain', 'minival', 'smalltrain', 'bigtrain', 'smallval', 'minitest', 'smalltest',  'val', 'singleton']:
         name = 'vg_{}_{}'.format(version,split) # construct vg dataset for each version and its split
 
         # a list of vg datasets (vg is imdb subclass)

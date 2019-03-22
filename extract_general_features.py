@@ -268,127 +268,127 @@ if __name__ == '__main__':
   if args.cuda:
     cfg.CUDA = True
 
+  with torch.no_grad():  
+    fasterRCNN.to(device)
+    fasterRCNN.eval()
 
-  fasterRCNN.to(device)
-  fasterRCNN.eval()
 
+    thresh = 0.0 # default value when vis=False
 
-  thresh = 0.0 # default value when vis=False
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
+                              shuffle=False, num_workers=0, pin_memory=True)
+    data_iter = iter(dataloader)
 
-  dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
-                            shuffle=False, num_workers=0, pin_memory=True)
-  data_iter = iter(dataloader)
+    empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
+    for i in tqdm(range(num_images)):
+        all_feat_class = [[] for _ in xrange(num_classes)]
+        all_probs_class = [[] for _ in xrange(num_classes)]
+        all_boxes_class = [[] for _ in xrange(num_classes)]
 
-  empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
-  for i in tqdm(range(num_images)):
-      all_feat_class = [[] for _ in xrange(num_classes)]
-      all_probs_class = [[] for _ in xrange(num_classes)]
-      all_boxes_class = [[] for _ in xrange(num_classes)]
+        data = next(data_iter)
+        scale = data[1].item()
 
-      data = next(data_iter)
-      scale = data[1].item()
+        im_data.data.resize_(data[0].size()).copy_(data[0])
+        im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(device)
 
-      im_data.data.resize_(data[0].size()).copy_(data[0])
-      im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(device)
+        rois, cls_prob, bbox_pred, \
+        rpn_loss_cls, rpn_loss_box, \
+        RCNN_loss_cls, RCNN_loss_bbox, \
+        rois_label, image_summary = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-      rois, cls_prob, bbox_pred, \
-      rpn_loss_cls, rpn_loss_box, \
-      RCNN_loss_cls, RCNN_loss_bbox, \
-      rois_label, image_summary = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+        ###### assume: order does not change
+        image_summary.info.image_idx = image_index[i]
+        image_summary.info.data = generic_extractor._detach2numpy(im_data).squeeze()
 
-      ###### assume: order does not change
-      image_summary.info.image_idx = image_index[i]
-      image_summary.info.data = generic_extractor._detach2numpy(im_data).squeeze()
+        # phase 0 
+        scores = cls_prob.data
+        boxes = rois.data[:, :, 1:5] # (x1, y1, x2, y2)
 
-      # phase 0 
-      scores = cls_prob.data
-      boxes = rois.data[:, :, 1:5] # (x1, y1, x2, y2)
+        # Apply bounding-box regression deltas
+        box_deltas = bbox_pred.data
 
-      # Apply bounding-box regression deltas
-      box_deltas = bbox_pred.data
+        box_deltas = box_deltas.view(-1, 4) \
+            * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+            + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+        box_deltas = box_deltas.view(1, -1, 4 * len(class_labels))
 
-      box_deltas = box_deltas.view(-1, 4) \
-          * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-          + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-      box_deltas = box_deltas.view(1, -1, 4 * len(class_labels))
+        # adjust boxes by deltas; output in (x1, y1, x2, y2)
+        pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
+        # avoid boxes go out of image
+        pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
 
-      # adjust boxes by deltas; output in (x1, y1, x2, y2)
-      pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
-      # avoid boxes go out of image
-      pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
+    
+        pred_boxes /= scale # (x1, y1, x2, y2)
 
-  
-      pred_boxes /= scale # (x1, y1, x2, y2)
+        scores = scores.squeeze() # torch.Size([300, 151])
+        pooled_feat_backup = image_summary.pred.pooled_feat
 
-      scores = scores.squeeze() # torch.Size([300, 151])
-      pooled_feat_backup = image_summary.pred.pooled_feat
+        pred_boxes = pred_boxes.squeeze() # torch.Size([300, 604]), 604=4*151
 
-      pred_boxes = pred_boxes.squeeze() # torch.Size([300, 604]), 604=4*151
+        for j in xrange(1, num_classes):
+            inds = torch.nonzero(scores[:,j]>thresh).view(-1)
+            # if there is det
+            if inds.numel() > 0:
+              curr_prob = scores # 300 x 151
+              curr_feat = pooled_feat_backup # 300 x 512 x 7 x 7 
 
-      for j in xrange(1, num_classes):
-          inds = torch.nonzero(scores[:,j]>thresh).view(-1)
-          # if there is det
-          if inds.numel() > 0:
-            curr_prob = scores # 300 x 151
-            curr_feat = pooled_feat_backup # 300 x 512 x 7 x 7 
+              cls_scores = scores[:,j][inds]
+              _, order = torch.sort(cls_scores, 0, True)
+              if args.class_agnostic:
+                cls_boxes = pred_boxes[inds, :]
+              else:
+                cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
+              
+              cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
+              cls_dets = cls_dets[order]
+              curr_prob = curr_prob[order]
+              curr_feat = curr_feat[order]
 
-            cls_scores = scores[:,j][inds]
-            _, order = torch.sort(cls_scores, 0, True)
-            if args.class_agnostic:
-              cls_boxes = pred_boxes[inds, :]
+              keep = nms(cls_dets, cfg.TEST.NMS)
+
+              cls_dets = cls_dets[keep.view(-1).long()]
+              curr_prob = curr_prob[keep.view(-1).long()]
+              curr_feat = curr_feat[keep.view(-1).long()]
+
+              all_boxes_class[j] = cls_dets.cpu().numpy()
+              all_probs_class[j] = curr_prob.cpu().numpy()
+              all_feat_class[j] = curr_feat
             else:
-              cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
-            
-            cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
-            cls_dets = cls_dets[order]
-            curr_prob = curr_prob[order]
-            curr_feat = curr_feat[order]
+              all_boxes_class[j] = empty_array
+              all_probs_class[j] = empty_array
+              all_feat_class[j] = empty_array
+        
+        min_area = 2000
+        for j in xrange(1, num_classes):
+            filter_index = filter_small_box(all_boxes_class[j], min_area)
+            all_boxes_class[j] = all_boxes_class[j][filter_index]
+            all_probs_class[j] = all_probs_class[j][filter_index]
+            all_feat_class[j] = all_feat_class[j][filter_index]
 
-            keep = nms(cls_dets, cfg.TEST.NMS)
+        # Limit to max_per_image detections *over all classes*
+        # phase 3
+        curr_boxes = []
+        curr_scores = []
+        if max_per_image > 0:
+            # flatten scores for all boxes of this image
+            image_scores = np.hstack([all_boxes_class[j][:, -1] for j in xrange(1, num_classes)])
+            if len(image_scores) > max_per_image:
+                image_thresh = np.sort(image_scores)[-max_per_image]
+                for j in xrange(1, num_classes):
+                    keep = np.where(all_boxes_class[j][:, -1] >= image_thresh)[0]
+                    all_boxes_class[j] = all_boxes_class[j][keep, :]
+                    all_probs_class[j] = all_probs_class[j][keep, :]
+                    all_feat_class[j] = all_feat_class[j][keep, :]
 
-            cls_dets = cls_dets[keep.view(-1).long()]
-            curr_prob = curr_prob[keep.view(-1).long()]
-            curr_feat = curr_feat[keep.view(-1).long()]
+        if(i % 1000 == 0):
+            print("Cleaning CUDA cache")
+            torch.cuda.empty_cache()
 
-            all_boxes_class[j] = cls_dets.cpu().numpy()
-            all_probs_class[j] = curr_prob.cpu().numpy()
-            all_feat_class[j] = curr_feat
-          else:
-            all_boxes_class[j] = empty_array
-            all_probs_class[j] = empty_array
-            all_feat_class[j] = empty_array
-      
-      min_area = 2000
-      for j in xrange(1, num_classes):
-          filter_index = filter_small_box(all_boxes_class[j], min_area)
-          all_boxes_class[j] = all_boxes_class[j][filter_index]
-          all_probs_class[j] = all_probs_class[j][filter_index]
-          all_feat_class[j] = all_feat_class[j][filter_index]
+        image_summary.pred.cls_prob = [all_probs_class[j] for j in range(num_classes)]
+        image_summary.pred.boxes= [all_boxes_class[j] for j in range(num_classes)] 
+        image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] 
 
-      # Limit to max_per_image detections *over all classes*
-      # phase 3
-      curr_boxes = []
-      curr_scores = []
-      if max_per_image > 0:
-          # flatten scores for all boxes of this image
-          image_scores = np.hstack([all_boxes_class[j][:, -1] for j in xrange(1, num_classes)])
-          if len(image_scores) > max_per_image:
-              image_thresh = np.sort(image_scores)[-max_per_image]
-              for j in xrange(1, num_classes):
-                  keep = np.where(all_boxes_class[j][:, -1] >= image_thresh)[0]
-                  all_boxes_class[j] = all_boxes_class[j][keep, :]
-                  all_probs_class[j] = all_probs_class[j][keep, :]
-                  all_feat_class[j] = all_feat_class[j][keep, :]
-
-      if(i % 1000 == 0):
-          print("Cleaning CUDA cache")
-          torch.cuda.empty_cache()
-
-      image_summary.pred.cls_prob = [all_probs_class[j] for j in range(num_classes)]
-      image_summary.pred.boxes= [all_boxes_class[j] for j in range(num_classes)] 
-      image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] 
-
-      feature_file = os.path.join(feature_path, image_summary.info.image_idx+".pkl")
-      package_image_summary(image_summary, feature_path) 
+        feature_file = os.path.join(feature_path, image_summary.info.image_idx+".pkl")
+        package_image_summary(image_summary, feature_path) 
 
 

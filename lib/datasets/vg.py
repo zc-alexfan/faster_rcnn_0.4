@@ -125,13 +125,9 @@ class vg(imdb):
         return image_path
 
     def _image_split_path(self):
-        if self._image_set == "minitrain":
+        if self._image_set == "minitrain" or self._image_set == "smalltrain" or self._image_set == "bigtrain":
           return os.path.join(self._data_path, 'train.txt')
-        if self._image_set == "smalltrain":
-          return os.path.join(self._data_path, 'train.txt')
-        if self._image_set == "minival":
-          return os.path.join(self._data_path, 'val.txt')
-        if self._image_set == "smallval":
+        if self._image_set == "minival" or self._image_set == "smallval":
           return os.path.join(self._data_path, 'val.txt')
         else:
           return os.path.join(self._data_path, self._image_set+'.txt')
@@ -145,14 +141,23 @@ class vg(imdb):
                 'Path does not exist: {}'.format(training_split_file)
         with open(training_split_file) as f:
           metadata = f.readlines()
+
           if self._image_set == "minitrain":
             metadata = metadata[:1000]
           elif self._image_set == "smalltrain":
             metadata = metadata[:5000]
+          elif self._image_set == "bigtrain":
+            metadata = metadata[:40000]
           elif self._image_set == "minival":
             metadata = metadata[:100]
           elif self._image_set == "smallval":
+            metadata = metadata[:1500]
+          elif self._image_set == "minitest":
+            metadata = metadata[:100]
+          elif self._image_set == "smalltest":
             metadata = metadata[:2000]
+          print(">>>>>>>>>> Extracting %d images "%(len(metadata)))
+
 
         image_index = []
         id_to_dir = {}
