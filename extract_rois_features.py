@@ -284,6 +284,9 @@ if __name__ == '__main__':
 
     empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
     for i in tqdm(range(num_images)):
+        print("Doing image_idx: %s"%(image_index[i]))
+        rois = torch.load('./data/testbed/gt_features/rois%s.pt'% (image_index[i]))
+        print('rois loaded: ./data/testbed/gt_features/rois%s.pt'% (image_index[i]))
         all_feat_class = [[] for _ in xrange(num_classes)]
         all_probs_class = [[] for _ in xrange(num_classes)]
         all_boxes_class = [[] for _ in xrange(num_classes)]
@@ -294,7 +297,7 @@ if __name__ == '__main__':
         im_data.data.resize_(data[0].size()).copy_(data[0])
         im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(device)
 
-        rois, cls_prob, bbox_pred, image_summary = fasterRCNN(im_data, im_info)
+        cls_prob, bbox_pred, image_summary = fasterRCNN(im_data, im_info, rois)
 
         ###### assume: order does not change
         image_summary.info.image_idx = image_index[i]
