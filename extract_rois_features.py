@@ -18,9 +18,6 @@ from tqdm import tqdm
 import torch
 import pickle
 from model.utils.config import cfg, cfg_from_file, cfg_from_list 
-from model.rpn.bbox_transform import clip_boxes
-from model.nms.nms_wrapper import nms
-from model.rpn.bbox_transform import bbox_transform_inv
 from model.faster_rcnn.rois_extractor import rois_extractor
 from easydict import EasyDict as edict
 
@@ -72,52 +69,17 @@ class roibatchLoader(Dataset):
   def __len__(self):
     return len(self._image_urls)
 
-def formalize_bbox(_im_summary): 
-    """
-    Extract bboxes from all classes and return a list of bbox. 
-    Each element of the list is in the form: [x1, y1, x2, y2, class_id, score]. 
-    The returned list is sorted descendingly according to score. 
-    """
-    boxes = [] # each element: x, y, w, h, class_id, score 
-    probs = [] # prob distribution for each bounding box
-    feats = [] # pooled features
-    
-    for class_id, items in enumerate(_im_summary.pred.boxes):
-        for bbox in items:
-            x1, y1, x2, y2, score = bbox
-            boxes.append([x1, y1, x2, y2, class_id, score])
-    
-    for class_id, items in enumerate(_im_summary.pred.cls_prob):
-        for cls_prob in items:                
-            probs.append(cls_prob)
-    assert len(boxes) == len(probs)
+def dump_summary(feature_path, image_jpg_id, im_summary):
+    # packing
+    out = {}
+    out['pred_pooled_feat'] = im_summary.pred.pooled_feat.reshape(-1, 4096)
+    out['pred_cls_prob'] = im_summary.pred.cls_prob.reshape(-1, 151)
+    out['info_dim_scale'] = im_summary.info.dim_scale
 
-    for class_id, items in enumerate(_im_summary.pred.pooled_feat):
-        for f in items:                
-            feats.append(f)
-    assert len(boxes) == len(feats)
+    curr_im_path = feature_path + "/" + image_jpg_id
 
-    bundles = list(zip(boxes, probs, feats))
-    bundles = sorted(bundles, key=lambda x: x[0][-1], reverse = True) # sort by confidence descendingly 
-    
-    boxes, probs, feats = zip(*bundles)
-    
-    return (list(boxes), list(probs), list(feats))
-
-
-def package_image_summary(im_summary, _feature_path): 
-    boxes, probs, feats = formalize_bbox(im_summary)
-
-    im_summary_out = {}
-    im_summary_out['boxes'] = boxes
-    im_summary_out['scale'] = im_summary.info.dim_scale[2]
-    im_summary_out['cls_prob'] = im_summary.pred.cls_prob 
-    im_summary_out['pooled_feat'] = im_summary.pred.pooled_feat 
-
-    curr_im_path = im_summary.info.image_idx + ".pkl"
-    pickle.dump(im_summary_out, open(os.path.join(_feature_path, curr_im_path), 'wb'))
-    
-
+    for k in out.keys():
+        np.save(curr_im_path + '.' + k, out[k])
 
 def parse_args():
   """
@@ -167,16 +129,6 @@ def parse_args():
                       action='store_true')
   args = parser.parse_args()
   return args
-
-def filter_small_box(boxes, min_area): 
-  boxes_index = []
-  for i, box in enumerate(boxes): 
-    x1, y1, x2, y2, _ = box
-    area = (x2-x1)*(y2-y1)
-    if(area >= min_area): 
-      boxes_index.append(i)
-  return boxes_index
-
 
 if __name__ == '__main__':
   device = torch.device('cuda:0')
@@ -233,8 +185,8 @@ if __name__ == '__main__':
   if args.set_cfgs is not None:
     cfg_from_list(args.set_cfgs)
 
-  print('Using config:')
-  pprint.pprint(cfg)
+  #print('Using config:')
+  #pprint.pprint(cfg)
 
 
   cfg.TRAIN.USE_FLIPPED = False
@@ -265,8 +217,6 @@ if __name__ == '__main__':
 
   # initilize the tensor holder here.
   im_data = torch.FloatTensor(1).to(device)
-  gt_boxes = torch.FloatTensor([[ 1.,  1.,  1.,  1.,  1.]]).to(device)
-  num_boxes = torch.LongTensor([0]).to(device)
 
   if args.cuda:
     cfg.CUDA = True
@@ -274,22 +224,14 @@ if __name__ == '__main__':
   with torch.no_grad():  
     fasterRCNN.to(device)
     fasterRCNN.eval()
-
-
-    thresh = 0.0 # default value when vis=False
-
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
                               shuffle=False, num_workers=0, pin_memory=True)
     data_iter = iter(dataloader)
 
-    empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
     for i in tqdm(range(num_images)):
         print("Doing image_idx: %s"%(image_index[i]))
         rois = torch.load('./data/testbed/gt_features/rois%s.pt'% (image_index[i]))
         print('rois loaded: ./data/testbed/gt_features/rois%s.pt'% (image_index[i]))
-        all_feat_class = [[] for _ in xrange(num_classes)]
-        all_probs_class = [[] for _ in xrange(num_classes)]
-        all_boxes_class = [[] for _ in xrange(num_classes)]
 
         data = next(data_iter)
         scale = data[1].item()
@@ -297,101 +239,16 @@ if __name__ == '__main__':
         im_data.data.resize_(data[0].size()).copy_(data[0])
         im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(device)
 
-        cls_prob, bbox_pred, image_summary = fasterRCNN(im_data, im_info, rois)
-
-        ###### assume: order does not change
-        image_summary.info.image_idx = image_index[i]
-        image_summary.info.data = rois_extractor._detach2numpy(im_data).squeeze()
-
-        # phase 0 
-        scores = cls_prob.data
-        boxes = rois.data[:, :, 1:5] # (x1, y1, x2, y2)
-
-        # Apply bounding-box regression deltas
-        box_deltas = bbox_pred.data
-
-        box_deltas = box_deltas.view(-1, 4) \
-            * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-            + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-        box_deltas = box_deltas.view(1, -1, 4 * len(class_labels))
-
-        # adjust boxes by deltas; output in (x1, y1, x2, y2)
-        pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
-        # avoid boxes go out of image
-        pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
-
-    
-        pred_boxes /= scale # (x1, y1, x2, y2)
-
-        scores = scores.squeeze() # torch.Size([300, 151])
-        pooled_feat_backup = image_summary.pred.pooled_feat
-
-        pred_boxes = pred_boxes.squeeze() # torch.Size([300, 604]), 604=4*151
-
-        for j in xrange(1, num_classes):
-            inds = torch.nonzero(scores[:,j]>thresh).view(-1)
-            # if there is det
-            if inds.numel() > 0:
-              curr_prob = scores # 300 x 151
-              curr_feat = pooled_feat_backup # 300 x 512 x 7 x 7 
-
-              cls_scores = scores[:,j][inds]
-              _, order = torch.sort(cls_scores, 0, True)
-              if args.class_agnostic:
-                cls_boxes = pred_boxes[inds, :]
-              else:
-                cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
-              
-              cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
-              cls_dets = cls_dets[order]
-              curr_prob = curr_prob[order]
-              curr_feat = curr_feat[order]
-
-              keep = nms(cls_dets, cfg.TEST.NMS)
-
-              cls_dets = cls_dets[keep.view(-1).long()]
-              curr_prob = curr_prob[keep.view(-1).long()]
-              curr_feat = curr_feat[keep.view(-1).long()]
-
-              all_boxes_class[j] = cls_dets.cpu().numpy()
-              all_probs_class[j] = curr_prob.cpu().numpy()
-              all_feat_class[j] = curr_feat
-            else:
-              all_boxes_class[j] = empty_array
-              all_probs_class[j] = empty_array
-              all_feat_class[j] = empty_array
-        
-        min_area = 2000
-        for j in xrange(1, num_classes):
-            filter_index = filter_small_box(all_boxes_class[j], min_area)
-            all_boxes_class[j] = all_boxes_class[j][filter_index]
-            all_probs_class[j] = all_probs_class[j][filter_index]
-            all_feat_class[j] = all_feat_class[j][filter_index]
-
-        # Limit to max_per_image detections *over all classes*
-        # phase 3
-        curr_boxes = []
-        curr_scores = []
-        if max_per_image > 0:
-            # flatten scores for all boxes of this image
-            image_scores = np.hstack([all_boxes_class[j][:, -1] for j in xrange(1, num_classes)])
-            if len(image_scores) > max_per_image:
-                image_thresh = np.sort(image_scores)[-max_per_image]
-                for j in xrange(1, num_classes):
-                    keep = np.where(all_boxes_class[j][:, -1] >= image_thresh)[0]
-                    all_boxes_class[j] = all_boxes_class[j][keep, :]
-                    all_probs_class[j] = all_probs_class[j][keep, :]
-                    all_feat_class[j] = all_feat_class[j][keep, :]
-
+        # NOTE: rois should be under the scale of 600, not the original scale
+        image_summary = fasterRCNN(im_data, im_info, rois)
         if(i % 1000 == 0):
             print("Cleaning CUDA cache")
             torch.cuda.empty_cache()
 
-        image_summary.pred.cls_prob = [all_probs_class[j] for j in range(num_classes)]
-        image_summary.pred.boxes = [all_boxes_class[j] for j in range(num_classes)] 
-        image_summary.pred.pooled_feat = [all_feat_class[j] for j in range(num_classes)] 
+        dump_summary(feature_path, image_index[i], image_summary)
 
-        feature_file = os.path.join(feature_path, image_summary.info.image_idx+".pkl")
-        package_image_summary(image_summary, feature_path) 
+
+
+
 
 
