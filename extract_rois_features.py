@@ -139,6 +139,9 @@ def parse_args():
   parser.add_argument('--vis', dest='vis',
                       help='visualization mode',
                       action='store_true')
+  parser.add_argument('--union', dest='isUnion',
+                      help='extract union',
+                      action='store_true')
   args = parser.parse_args()
   return args
 
@@ -158,15 +161,20 @@ if __name__ == '__main__':
      'stripe', 'letter', 'vase', 'man', 'building', 'surfboard', 'windows', 'light', 'counter', 'lines', 'dog', 'face', 'jacket',
      'person', 'part', 'truck', 'bottle', 'wing']
   assert len(class_labels) == 151
+  args = parse_args()
+
 
 
   num_classes = len(class_labels)
+  isUnion = args.isUnion
+
+  print("Extracting union: %d"%(isUnion))
 
 
-  isUnion = True
-  datasplit = 'vg_alldata_smalltrain'
+  #isUnion = False
   datasplit = 'vg_alldata_minival'
   datasplit = 'vg_alldata_smallval'
+  datasplit = 'vg_alldata_smalltrain'
   image_path = '/home/alex/vg_data/vg_split/%s/' %(datasplit)
   rois_path = '/home/alex/faster-rcnn.pytorch/data/rois_interface/%s/'%(datasplit)
 
