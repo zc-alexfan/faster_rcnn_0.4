@@ -144,8 +144,8 @@ class DecoupledFasterRCNN():
               print("Cleaning CUDA cache")
               torch.cuda.empty_cache()
 
-          #summary_vec.append(image_summary)
-          dump_summary(feature_path, _image_index[i], image_summary, False)
-    #return summary_vec
+          summary_vec.append(image_summary)
+          #dump_summary(feature_path, _image_index[i], image_summary, False)
+    return summary_vec
 
 
