@@ -183,34 +183,28 @@ class DecoupledFasterRCNN():
   def predict(self, images):
     pass
 
-  def rois_predict(self, images, rois):
+#   def rois_predict(self, images, rois):
+  def rois_predict(self, dataset, rois_vec, _image_index): 
     fasterRCNN = self._fasterRCNN
 
 
-    datasplit = 'vg_alldata_smallval'
-    datasplit = 'vg_alldata_smalltrain'
-    datasplit = 'vg_alldata_minival'
-    image_path = '/home/alex/vg_data/vg_split/%s/' %(datasplit)
-    rois_path = '/home/alex/faster-rcnn.pytorch/data/rois_interface/%s/'%(datasplit)
 
-    image_extension = ".jpg"
-    image_index = glob.glob(os.path.join(image_path, "*" + image_extension))
-    image_index = [os.path.basename(x)[:-len(image_extension)] for x in image_index]
 
+    image_path = '/home/alex/vg_data/vg_split/%s/' %('vg_alldata_minival')
     feature_path = os.path.join(image_path, 'features')
 
     if not os.path.exists(feature_path):
       os.makedirs(feature_path)
 
-    dataset = roibatchLoader(image_path, image_index, image_extension)
+    
     num_images = len(dataset)
     max_per_image = 100
 
-    metaInfo = edict()
-    metaInfo.imdb_image_index = image_index
-    meta_file = os.path.join(feature_path, "meta.pkl")
-    with open(meta_file, 'wb') as f:
-        pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
+#     metaInfo = edict()
+#     metaInfo.imdb_image_index = image_index
+#     meta_file = os.path.join(feature_path, "meta.pkl")
+#     with open(meta_file, 'wb') as f:
+#         pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
 
 
     isUnion = False
@@ -221,6 +215,7 @@ class DecoupledFasterRCNN():
     if self._args.cuda:
       cfg.CUDA = True
 
+    summary_vec = []
     with torch.no_grad():  
       fasterRCNN.to(self._device)
       fasterRCNN.eval()
@@ -235,20 +230,9 @@ class DecoupledFasterRCNN():
           im_data.data.resize_(data[0].size()).copy_(data[0])
           scale = data[1].item()
           im_info = torch.FloatTensor([[im_data.size(2), im_data.size(3), scale]]).to(self._device)
+          rois = rois_vec[i]
 
-
-          if isUnion:
-              # (x1, y1, x2, y2) -> (0, x1, y1, x2, y2)
-              rois = np.load(rois_path + str(image_index[i]) + ".union_boxes.npy" )
-              left = np.zeros((rois.shape[0], 1))
-              rois = np.concatenate((left, rois), axis=1)
-          else:
-              # (x1, y1, x2, y2, label) -> (0, x1, y1, x2, y2)
-              rois = np.load(rois_path + str(image_index[i]) + ".boxes.npy" )
-              rois[:, 1:] = rois[:, 0:-1] 
-              rois[:, 0] = 0
-
-          if rois.shape[0] == 0:
+          if rois.shape[0] == 0: # no roi for this image
               continue
 
           rois = torch.FloatTensor(rois*scale)
@@ -260,7 +244,8 @@ class DecoupledFasterRCNN():
               print("Cleaning CUDA cache")
               torch.cuda.empty_cache()
 
-          dump_summary(feature_path, image_index[i], image_summary, isUnion)
-
+          #summary_vec.append(image_summary)
+          dump_summary(feature_path, _image_index[i], image_summary, isUnion)
+    #return summary_vec
 
 
