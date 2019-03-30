@@ -9,73 +9,19 @@ from __future__ import print_function
 
 import _init_paths
 import os
-import sys
 import numpy as np
-import argparse
-import pprint
-import pdb
 from tqdm import tqdm
 import torch
 import pickle
 from model.utils.config import cfg, cfg_from_file, cfg_from_list 
 from model.faster_rcnn.rois_extractor import rois_extractor
 from easydict import EasyDict as edict
-
 import glob
-from scipy.misc import imread
-import cv2
 
 try:
     xrange          # Python 2
 except NameError:
     xrange = range  # Python 3
-
-from torch.utils.data import Dataset
-def prep_im_for_blob(im, pixel_means, target_size, max_size):
-    """Mean subtract and scale an image for use in a blob."""
-
-    im = im.astype(np.float32, copy=False)
-    im -= pixel_means
-    im_shape = im.shape
-    im_size_min = np.min(im_shape[0:2])
-    im_size_max = np.max(im_shape[0:2])
-    im_scale = float(target_size) / float(im_size_min)
-    
-    im = cv2.resize(im, None, None, fx=im_scale, fy=im_scale,
-                    interpolation=cv2.INTER_LINEAR)
-
-    return im, im_scale
-
-class roibatchLoader(Dataset):
-  def __init__(self, image_path, image_urls, image_extension):
-    self._image_urls = image_urls
-    self._image_path = image_path
-    self._image_extension = image_extension
-
-  def __getitem__(self, index):
-    im = imread(os.path.join(\
-            self._image_path, self._image_urls[index] + self._image_extension))
-
-    if len(im.shape) == 2:
-        imnew = np.zeros((im.shape[0], im.shape[1], 3))
-        imnew[:, :, 0] = im 
-        imnew[:, :, 1] = im 
-        imnew[:, :, 2] = im 
-        im = imnew
-    else:
-        im = im[:, :, ::-1] # rgb -> bgr
-    target_size = 600
-    im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
-                        cfg.TRAIN.MAX_SIZE)
-
-    data = torch.from_numpy(im)
-    data_height, data_width = data.size(0), data.size(1)
-    data = data.permute(2, 0, 1)
-
-    return (data, im_scale)
-
-  def __len__(self):
-    return len(self._image_urls)
 
 def dump_summary(feature_path, image_jpg_id, im_summary, isUnion):
     # packing
@@ -95,7 +41,7 @@ def dump_summary(feature_path, image_jpg_id, im_summary, isUnion):
 
 
 class DecoupledFasterRCNN():
-  def __init__(self):
+  def __init__(self, load_name):
     self._module_dir = os.path.dirname(os.path.abspath(__file__))
 
     self._device = torch.device('cuda:0')
@@ -115,35 +61,15 @@ class DecoupledFasterRCNN():
     assert len(class_labels) == 151
 
     args = edict()
-    args.isUnion = False
-    args.dataset = 'vg'
-    args.net = 'vgg16'
     args.load_dir = 'models'
-    args.checksession = 1
-    args.checkepoch = 8
-    args.checkpoint = 3264
     args.class_agnostic = False
-    args.cuda = True
     args.cfg_file = os.path.join(self._module_dir, 'cfgs/vgg16.yml')
-    args.large_scale = False
     args.mGPUs = False
     args.parallel_type = 0
     args.set_cfgs = None
-    args.vis = False
-
-
-
-    num_classes = len(class_labels)
-    isUnion = args.isUnion
-
-    print("Extracting union: %d"%(isUnion))
-
-    np.random.seed(1)
-    assert args.dataset == 'vg'
-    assert args.net == 'vgg16'
 
     args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
-    args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
+    args.cfg_file = "cfgs/vgg16.yml"
     args.cfg_file = os.path.join(self._module_dir, args.cfg_file)
 
     if args.cfg_file is not None:
@@ -151,19 +77,9 @@ class DecoupledFasterRCNN():
     if args.set_cfgs is not None:
       cfg_from_list(args.set_cfgs)
 
-
-    #print('Using config:')
-    #pprint.pprint(cfg)
-
-
     cfg.TRAIN.USE_FLIPPED = False
 
-    input_dir = os.path.join(self._module_dir, args.load_dir + "/" + args.net + "/" + args.dataset)
-
-    if not os.path.exists(input_dir):
-      raise Exception('There is no input directory for loading network from ' + input_dir)
-    load_name = os.path.join(input_dir,
-      'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
+    assert os.path.isfile(load_name), ' cannot find the file %s'%(load_name)
 
     # initilize the network here.
     fasterRCNN = rois_extractor(class_labels, pretrained=False, class_agnostic=args.class_agnostic)
@@ -187,33 +103,17 @@ class DecoupledFasterRCNN():
   def rois_predict(self, dataset, rois_vec, _image_index): 
     fasterRCNN = self._fasterRCNN
 
-
-
-
     image_path = '/home/alex/vg_data/vg_split/%s/' %('vg_alldata_minival')
     feature_path = os.path.join(image_path, 'features')
-
     if not os.path.exists(feature_path):
       os.makedirs(feature_path)
 
-    
     num_images = len(dataset)
-    max_per_image = 100
-
-#     metaInfo = edict()
-#     metaInfo.imdb_image_index = image_index
-#     meta_file = os.path.join(feature_path, "meta.pkl")
-#     with open(meta_file, 'wb') as f:
-#         pickle.dump(metaInfo, f, pickle.HIGHEST_PROTOCOL)
-
-
-    isUnion = False
 
     # initilize the tensor holder here.
     im_data = torch.FloatTensor(1).to(self._device)
 
-    if self._args.cuda:
-      cfg.CUDA = True
+    cfg.CUDA = True
 
     summary_vec = []
     with torch.no_grad():  
@@ -245,7 +145,7 @@ class DecoupledFasterRCNN():
               torch.cuda.empty_cache()
 
           #summary_vec.append(image_summary)
-          dump_summary(feature_path, _image_index[i], image_summary, isUnion)
+          dump_summary(feature_path, _image_index[i], image_summary, False)
     #return summary_vec
 
 
